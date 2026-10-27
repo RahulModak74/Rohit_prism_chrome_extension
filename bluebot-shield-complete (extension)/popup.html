@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font: 13px -apple-system, Segoe UI, Roboto, sans-serif; width: 300px; margin: 0; padding: 14px; color: #1a2332; }
+    h1 { font-size: 14px; margin: 0 0 2px; }
+    .sub { color: #6b7686; font-size: 11px; margin-bottom: 12px; }
+    .row { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid #eef1f5; }
+    .k { color: #6b7686; }
+    .v { font-weight: 600; }
+    .pill { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .on { background: #e4f5ea; color: #1a7d44; }
+    .off { background: #fdeaea; color: #b4261e; }
+    .note { margin-top: 12px; font-size: 11px; color: #6b7686; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <h1>BlueBot Browser Shield</h1>
+  <div class="sub">Enterprise device protection</div>
+  <div class="row"><span class="k">Status</span><span id="status" class="pill off">Inactive</span></div>
+  <div class="row"><span class="k">Organisation</span><span class="v" id="org">—</span></div>
+  <div class="row"><span class="k">Full URLs</span><span class="v" id="full">—</span></div>
+  <div class="row"><span class="k">Excluded domains</span><span class="v" id="excl">—</span></div>
+  <div class="note" id="note"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

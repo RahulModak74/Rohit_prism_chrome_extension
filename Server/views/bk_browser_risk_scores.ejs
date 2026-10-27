@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Risk Scores</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="date"] {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .pagination {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .pagination a {
+            margin: 0 5px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-decoration: none;
+            color: #007bff;
+        }
+
+        .pagination a.active {
+            background-color: #007bff;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Browser Risk Scores</h1>
+
+    <div class="form-container">
+        <form action="/browser_risk_scores" method="get" class="form-container">
+            <!-- Start Date Field -->
+            <div>
+                <label for="start_date">Start Date</label>
+                <input type="date" id="start_date" name="start_date" value="<%= start_date %>" required>
+            </div>
+
+            <!-- End Date Field -->
+            <div>
+                <label for="end_date">End Date</label>
+                <input type="date" id="end_date" name="end_date" value="<%= end_date %>" required>
+            </div>
+
+            <button type="submit">Search</button>
+        </form>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Browser ID</th>
+                <th>Total Risk Score Including Gen AI(0-10)</th>
+                <th>Multiple Sessions</th>
+                <th>Multiple Login Attempts</th>
+                <th>Multiple IP Addresses</th>
+                <th>High Request Frequency</th>
+                <th>Suspicious User-Agent</th>
+                <th>Unusual Geolocation Changes</th>
+                <th>Action Recommendations</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% results.forEach(function(result) { %>
+                <tr>
+                    <td><%= result.browserId %></td>
+                    <td><%= result.totalRiskScore %></td>
+                    <td><%= result.scores['Multiple Sessions'] || 0 %></td>
+                    <td><%= result.scores['Multiple Login Attempts'] || 0 %></td>
+                    <td><%= result.scores['Multiple IP Addresses'] || 0 %></td>
+                    <td><%= result.scores['High Request Frequency'] || 0 %></td>
+                    <td><%= result.scores['Suspicious User-Agent'] || 0 %></td>
+                    <td><%= result.scores['Unusual Geolocation Changes'] || 0 %></td>
+                    <td>
+                        <%= Object.entries(result.action).map(([key, value]) => `${key}: ${value}`).join(', ') %>
+                    </td>
+                </tr>
+            <% }); %>
+        </tbody>
+    </table>
+
+    <!-- <div class="pagination">
+        <% if (currentPage > 1) { %>
+            <a href="/browser_risk_scores?start_date=<%= start_date %>&end_date=<%= end_date %>&page=<%= currentPage - 1 %>">&laquo; Previous</a>
+        <% } %>
+        <% for (let i = 1; i <= totalPages; i++) { %>
+            <a href="/browser_risk_scores?start_date=<%= start_date %>&end_date=<%= end_date %>&page=<%= i %>" class="<%= currentPage === i ? 'active' : '' %>"><%= i %></a>
+        <% } %>
+        <% if (currentPage < totalPages) { %>
+            <a href="/browser_risk_scores?start_date=<%= start_date %>&end_date=<%= end_date %>&page=<%= currentPage + 1 %>">Next &raquo;</a>
+        <% } %>
+    </div> -->
+    <div class="pagination">
+        <% for(let i = 1; i <= totalPages; i++) { %>
+            <a href="/browser_risk_scores?start_date=<%= start_date %>&end_date=<%= end_date %>&page=<%= i %>"
+               class="<%= currentPage === i ? 'active' : '' %>">
+                <%= i %>
+            </a>
+        <% } %>
+    </div>
+
+</body>
+
+</html>

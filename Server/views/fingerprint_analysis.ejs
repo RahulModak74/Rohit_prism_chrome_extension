@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fingerprint Analysis</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            background-color: #007bff;
+            color: white;
+            padding: 15px 0;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .form-container {
+            display: flex;
+            align-items: flex-end;
+            gap: 15px;
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .input-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        input[type="text"],
+        input[type="date"] {
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            height: 35px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #dee2e6;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .fingerprint-cell {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .pagination {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .pagination a {
+            display: inline-block;
+            padding: 8px 12px;
+            margin: 0 4px;
+            text-decoration: none;
+            color: #007bff;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+
+        .pagination a.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        Fingerprint Analysis
+    </header>
+
+    <div class="container">
+        <form action="/fingerprint-analysis" method="get" class="form-container">
+            <div class="input-field">
+                <label for="fingerprint_id">Fingerprint ID:</label>
+                <input type="text" id="fingerprint_id" name="fingerprint_id" value="<%= escapeHTML(fingerprint_id) %>"
+                    placeholder="Enter fingerprint ID">
+            </div>
+
+            <div class="input-field">
+                <label for="start_date">Start Date:</label>
+                <input type="date" id="start_date" name="start_date" value="<%= escapeHTML(start_date) %>">
+            </div>
+
+            <div class="input-field">
+                <label for="end_date">End Date:</label>
+                <input type="date" id="end_date" name="end_date" value="<%= escapeHTML(end_date) %>">
+            </div>
+
+            <button type="submit">Search</button>
+        </form>
+
+        <% if (data.length> 0) { %>
+            <table>
+                <thead>
+                    <tr>
+                        <% if (!fingerprint_id) { %>
+                            <th>Fingerprint ID</th>
+                            <th>Number of Sessions</th>
+                            <th>Number of Domains</th>
+                            <% } else { %>
+                                <th>Fingerprint ID</th>
+                                <th>Session ID</th>
+                                <th>Domain</th>
+                                <% } %>
+                                    <th>First Seen</th>
+                                    <th>Last Seen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% data.forEach(function(row) { %>
+                        <tr>
+                            <% if (!fingerprint_id) { %>
+                                <td class="fingerprint-cell">
+                                    <a
+                                        href="/fingerprint-analysis?fingerprint_id=<%= encodeURIComponent(row.fingerprint_id) %>">
+                                        <%= escapeHTML(row.fingerprint_id) %>
+                                    </a>
+                                </td>
+                                <td>
+                                    <%= escapeHTML(row.session_count.toString()) %>
+                                </td>
+                                <td>
+                                    <%= escapeHTML(row.domain_count.toString()) %>
+                                </td>
+                                <% } else { %>
+                                    <td class="fingerprint-cell">
+                                        <%= escapeHTML(row.fingerprint_id) %>
+                                    </td>
+                                    <td>
+                                        <%= escapeHTML(row.session_id) %>
+                                    </td>
+                                    <td>
+                                        <%= escapeHTML(row.hostname) %>
+                                    </td>
+                                    <% } %>
+                                        <td>
+                                            <%= escapeHTML(row.first_seen) %>
+                                        </td>
+                                        <td>
+                                            <%= escapeHTML(row.last_seen) %>
+                                        </td>
+                        </tr>
+                        <% }); %>
+                </tbody>
+            </table>
+
+            <div class="pagination">
+                <% for(let i=1; i <=totalPages; i++) { %>
+                    <a href="/fingerprint-analysis?fingerprint_id=<%= encodeURIComponent(fingerprint_id) %>&start_date=<%= encodeURIComponent(start_date) %>&end_date=<%= encodeURIComponent(end_date) %>&page=<%= i %>"
+                        class="<%= currentPage === i ? 'active' : '' %>">
+                         <%= i %>
+                     </a>
+                    <% } %>
+            </div>
+            <% } else { %>
+                <div class="no-data">
+                    No data found for the specified criteria
+                </div>
+                <% } %>
+    </div>
+</body>
+
+</html>

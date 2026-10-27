@@ -1,0 +1,43 @@
+{
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "title": "Organisation ID",
+      "description": "Tenant identifier issued by BlueBot. The extension stays INACTIVE until this is set by managed policy, so a user who installs it manually collects nothing.",
+      "type": "string"
+    },
+    "userId": {
+      "title": "User identifier",
+      "description": "Opaque per-employee id (e.g. a hash of the work email). Never send the raw email.",
+      "type": "string"
+    },
+    "serverUrl": {
+      "title": "Ingest URL",
+      "description": "HTTPS endpoint that receives security events, e.g. https://shield.bayesiancybersecurity.com/collect",
+      "type": "string"
+    },
+    "allowlistOrigins": {
+      "title": "Known third-party origins",
+      "description": "Origins the org treats as normal (CDNs, SSO, analytics). Everything else is 'novel'.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "personalDomains": {
+      "title": "Excluded personal domains",
+      "description": "Domains never monitored at all (banking, health, personal mail). Matched on the registrable domain.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "collectFullUrl": {
+      "title": "Collect full URLs",
+      "description": "Default false. When false only the origin (scheme+host) is sent, never the path or query. Leave false unless legal has approved full-URL capture.",
+      "type": "boolean"
+    },
+    "monitorIncognito": {
+      "title": "Monitor incognito windows",
+      "description": "Default false. Keep false; incognito is for personal use.",
+      "type": "boolean"
+    }
+  },
+  "required": ["orgId", "serverUrl"]
+}

@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rules Management</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        /* Additional Rules Page Specific Styles */
+        form {
+            margin-bottom: 30px;
+        }
+
+        .rule-form {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .rule-form h3 {
+            margin-top: 0;
+            color: #007bff;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .form-title {
+            margin-bottom: 15px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+            color: #333;
+        }
+
+        .rule-actions, .edit-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .rule-actions button, .edit-actions button {
+            width: 100%;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .rule-actions button i, .edit-actions button i {
+            margin-right: 5px;
+        }
+
+        /* Row being edited */
+        tr.editing {
+            background-color: #f0f8ff !important;
+        }
+
+        tr.editing .editable-cell {
+            padding: 0;
+        }
+
+        tr.editing input[type="text"],
+        tr.editing input[type="number"],
+        tr.editing select {
+            border: 2px solid #007bff;
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 1em;
+            height: 38px;
+            box-sizing: border-box;
+        }
+
+        /* Specific styles for different cell types */
+        .rule-cell {
+            min-width: 300px;
+            max-width: 600px;
+            word-break: break-word;
+        }
+
+        .name-cell {
+            min-width: 150px;
+            max-width: 300px;
+        }
+
+        .time-cell {
+            width: 100px;
+        }
+
+        .action-cell {
+            width: 120px;
+        }
+
+        /* Actions column needs to be wide enough for stacked buttons */
+        table th:last-child, 
+        table td:last-child {
+            width: 150px;
+            min-width: 150px;
+        }
+
+        /* Hover effect for editable cells */
+        .editable-cell {
+            position: relative;
+        }
+
+        tr:not(.editing) .editable-cell:hover::after {
+            content: "\f040"; /* Pencil icon */
+            font-family: "Font Awesome 5 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 5px;
+            top: 5px;
+            color: #007bff;
+            font-size: 0.8em;
+            opacity: 0.5;
+        }
+
+        .toggle-edit {
+            cursor: pointer;
+            color: #007bff;
+        }
+
+        .toggle-edit:hover {
+            text-decoration: underline;
+        }
+
+        /* Action badge styles */
+        .action-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .action-terminate {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .action-nudge {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .action-captcha {
+            background-color: #17a2b8;
+            color: white;
+        }
+
+        .edit-button, .save-button {
+            background-color: #007bff;
+        }
+
+        .delete-button {
+            background-color: #dc3545;
+        }
+
+        .cancel-button {
+            background-color: #6c757d;
+        }
+
+        /* Loading and message styles */
+        #loadingIndicator {
+            text-align: center;
+            padding: 20px;
+        }
+
+        #noDataMessage, #errorMessage {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+
+        #errorMessage {
+            color: #dc3545;
+        }
+
+        /* Time format styles */
+        .time-value {
+            font-family: monospace;
+            color: #666;
+        }
+
+        /* Form Styles from first attachment */
+        .form-content {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        .input-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-field label {
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .input-field input,
+        .input-field select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .form-buttons button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .form-buttons button i {
+            margin-right: 8px;
+        }
+
+        .submit-btn {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .reset-btn {
+            background-color: #6c757d;
+            color: white;
+        }
+    </style>
+    <script src="/js/client-security.js"></script>
+</head>
+
+<body>
+    <header>
+        <h1>Rules Management</h1>
+    </header>
+
+    <!-- Navigation buttons -->
+    <div style="padding: 10px; display: flex; gap: 10px;">
+        <a href="/dashboard.html" style="text-decoration: none; color: white; background-color: #007bff; padding: 8px 15px; border-radius: 5px; font-size: 16px;">Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+        <div id="messageContainer"></div>
+        
+        <!-- Add New Rule Form from the first attachment -->
+        <h2 class="form-title">Add New Rule</h2>
+        <form id="newRuleForm" data-secure="true" class="rule-form">
+            <div class="form-content">
+                <div class="input-field">
+                    <label for="name"><i class="fas fa-tag"></i> Name:</label>
+                    <input type="text" id="name" name="name" placeholder="Enter rule name" required>
+                </div>
+                
+                <div class="input-field">
+                    <label for="rule"><i class="fas fa-code"></i> Rule:</label>
+                    <input type="text" id="rule" name="rule" placeholder="Enter rule conditions" required>
+                </div>
+                
+                <div class="input-field">
+                    <label for="action_time"><i class="fas fa-clock"></i> Action Time (seconds):</label>
+                    <input type="number" id="action_time" name="action_time" placeholder="Enter time in seconds" required min="0">
+                </div>
+                
+                <div class="input-field">
+                    <label for="action"><i class="fas fa-bolt"></i> Action:</label>
+                    <select name="action" id="action" required>
+                        <option value="">Select Action</option>
+                        <option value="terminate">Terminate</option>
+                        <option value="nudge">Nudge</option>
+                        <option value="captcha">Captcha</option>
+                    </select>
+                </div>
+                
+                <div class="form-buttons">
+                    <button type="submit" class="submit-btn"><i class="fas fa-plus-circle"></i> Add Rule</button>
+                    <button type="reset" class="reset-btn"><i class="fas fa-undo"></i> Reset</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Existing Rules Section -->
+        <h2 class="form-title">Existing Rules</h2>
+        
+        <!-- Loading indicator -->
+        <div id="loadingIndicator">
+            <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+            <p>Loading rules...</p>
+        </div>
+        
+        <!-- No data message -->
+        <div id="noDataMessage">
+            <i class="fas fa-info-circle" style="font-size: 24px; color: #007bff;"></i>
+            <p>No rules found. Use the form above to add a new rule.</p>
+        </div>
+
+        <!-- Error message -->
+        <div id="errorMessage">
+            <i class="fas fa-exclamation-triangle" style="font-size: 24px;"></i>
+            <p id="errorText">An error occurred while fetching rules.</p>
+        </div>
+        
+        <table id="rulesTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Rule</th>
+                    <th>Name</th>
+                    <th>Creation Time</th>
+                    <th>Last Edit Time</th>
+                    <th>Action Time</th>
+                    <th>Action</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="rulesTableBody">
+                <!-- Table content will be populated dynamically -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Fetch existing rules
+            fetchRules();
+            
+            // Add new rule form handler
+            document.getElementById('newRuleForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addNewRule();
+            });
+        });
+        
+        function fetchRules() {
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('rulesTable').style.display = 'none';
+            document.getElementById('noDataMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            
+            fetch('/api/rules')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide loading indicator
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    
+                    if (data.success) {
+                        if (data.rules && data.rules.length > 0) {
+                            renderRulesTable(data.rules);
+                            document.getElementById('rulesTable').style.display = 'table';
+                        } else {
+                            // Show no data message
+                            document.getElementById('noDataMessage').style.display = 'block';
+                        }
+                    } else {
+                        // Show error message
+                        document.getElementById('errorText').textContent = data.message || 'An error occurred while fetching rules.';
+                        document.getElementById('errorMessage').style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    // Hide loading indicator and show error
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    document.getElementById('errorText').textContent = `Error: ${error.message}`;
+                    document.getElementById('errorMessage').style.display = 'block';
+                    console.error('Error fetching rules:', error);
+                });
+        }
+        
+        function renderRulesTable(rules) {
+            const tableBody = document.getElementById('rulesTableBody');
+            tableBody.innerHTML = ''; // Clear existing content
+            
+            rules.forEach(rule => {
+                const row = document.createElement('tr');
+                row.id = `row-${rule.id}`;
+                
+                // Action badge style based on action type
+                const actionBadgeClass = `action-badge action-${rule.action.toLowerCase()}`;
+                
+                // Create row HTML with data attributes to store original values
+                row.innerHTML = `
+                    <td>${escapeHTML(rule.id.toString())}</td>
+                    <td class="editable-cell rule-cell" id="rule-cell-${rule.id}" data-field="rule" data-original="${escapeHTML(rule.rule)}">${escapeHTML(rule.rule)}</td>
+                    <td class="editable-cell name-cell" id="name-cell-${rule.id}" data-field="name" data-original="${escapeHTML(rule.name)}">${escapeHTML(rule.name)}</td>
+                    <td class="time-value">${escapeHTML(rule.creation_time)}</td>
+                    <td class="time-value">${escapeHTML(rule.last_edit_time)}</td>
+                    <td class="editable-cell time-cell" id="time-cell-${rule.id}" data-field="action_time" data-original="${escapeHTML(rule.action_time.toString())}">${escapeHTML(rule.action_time.toString())}</td>
+                    <td class="editable-cell action-cell" id="action-cell-${rule.id}" data-field="action" data-original="${escapeHTML(rule.action)}">
+                        <span class="${actionBadgeClass}" id="action-badge-${rule.id}">${escapeHTML(rule.action)}</span>
+                    </td>
+                    <td>
+                        <div class="rule-actions" id="actions-${rule.id}">
+                            <button type="button" class="edit-button" onclick="makeRowEditable('${rule.id}')">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button type="button" class="delete-button" onclick="deleteRule('${rule.id}')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                        <div class="edit-actions" id="edit-actions-${rule.id}" style="display: none;">
+                            <button type="button" class="save-button" onclick="saveRule('${rule.id}')">
+                                <i class="fas fa-save"></i> Save
+                            </button>
+                            <button type="button" class="cancel-button" onclick="cancelEdit('${rule.id}')">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                        </div>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        function makeRowEditable(ruleId) {
+            // Get all editable cells in this row
+            const ruleCells = document.querySelectorAll(`#row-${ruleId} .editable-cell`);
+            
+            // Make each cell editable
+            ruleCells.forEach(cell => {
+                const field = cell.dataset.field;
+                const originalValue = cell.dataset.original;
+                
+                // Handle the action field differently (dropdown needed)
+                if (field === 'action') {
+                    // Create a select dropdown for action
+                    const selectEl = document.createElement('select');
+                    selectEl.id = `action-edit-${ruleId}`;
+                    selectEl.style.width = '100%';
+                    selectEl.style.padding = '5px';
+                    
+                    // Add options
+                    const options = [
+                        { value: 'terminate', text: 'Terminate' },
+                        { value: 'nudge', text: 'Nudge' },
+                        { value: 'captcha', text: 'Captcha' }
+                    ];
+                    
+                    options.forEach(option => {
+                        const optionEl = document.createElement('option');
+                        optionEl.value = option.value;
+                        optionEl.textContent = option.text;
+                        if (option.value === originalValue) {
+                            optionEl.selected = true;
+                        }
+                        selectEl.appendChild(optionEl);
+                    });
+                    
+                    // Clear the cell and add the select dropdown
+                    cell.innerHTML = '';
+                    cell.appendChild(selectEl);
+                } else {
+                    // Create text input for other fields
+                    const inputType = field === 'action_time' ? 'number' : 'text';
+                    const textInput = document.createElement('input');
+                    textInput.type = inputType;
+                    textInput.value = originalValue;
+                    textInput.style.width = '100%';
+                    textInput.style.padding = '5px';
+                    textInput.id = `${field}-edit-${ruleId}`;
+                    
+                    if (field === 'action_time') {
+                        textInput.min = '0';
+                    }
+                    
+                    // Clear the cell and add the input
+                    cell.innerHTML = '';
+                    cell.appendChild(textInput);
+                }
+            });
+            
+            // Focus on the rule input
+            const ruleInput = document.getElementById(`rule-edit-${ruleId}`);
+            if (ruleInput) {
+                ruleInput.focus();
+            }
+            
+            // Show save/cancel buttons, hide edit/delete buttons
+            document.getElementById(`actions-${ruleId}`).style.display = 'none';
+            document.getElementById(`edit-actions-${ruleId}`).style.display = 'flex';
+            
+            // Add class to indicate row is being edited
+            document.getElementById(`row-${ruleId}`).classList.add('editing');
+        }
+        
+        function cancelEdit(ruleId) {
+            // Get all editable cells in this row
+            const editableCells = document.querySelectorAll(`#row-${ruleId} .editable-cell`);
+            
+            // Restore the original content for each cell
+            editableCells.forEach(cell => {
+                const field = cell.dataset.field;
+                const originalValue = cell.dataset.original;
+                
+                if (field === 'action') {
+                    // Restore action badge
+                    const actionClass = `action-badge action-${originalValue.toLowerCase()}`;
+                    cell.innerHTML = `<span class="${actionClass}" id="action-badge-${ruleId}">${escapeHTML(originalValue)}</span>`;
+                } else {
+                    // Restore text content for other fields
+                    cell.innerHTML = escapeHTML(originalValue);
+                }
+            });
+            
+            // Show edit/delete buttons, hide save/cancel buttons
+            document.getElementById(`actions-${ruleId}`).style.display = 'flex';
+            document.getElementById(`edit-actions-${ruleId}`).style.display = 'none';
+            
+            // Remove editing class
+            document.getElementById(`row-${ruleId}`).classList.remove('editing');
+        }
+        
+        function addNewRule() {
+            const formData = new FormData(document.getElementById('newRuleForm'));
+            const rule = formData.get('rule');
+            const name = formData.get('name');
+            const action_time = formData.get('action_time');
+            const action = formData.get('action');
+            
+            // Basic validation
+            if (!rule || !name || !action_time || !action) {
+                showMessage('error', 'All fields are required');
+                return;
+            }
+            
+            // Create request data
+            const requestData = {
+                rule,
+                name,
+                action_time,
+                action
+            };
+            
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
+            
+            fetch('/api/rules', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.message || `HTTP error! Status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                
+                if (data.success) {
+                    // Clear form
+                    document.getElementById('newRuleForm').reset();
+                    // Show success message
+                    showMessage('success', 'Rule added successfully');
+                    // Refresh rules list
+                    fetchRules();
+                } else {
+                    showMessage('error', data.message || 'Failed to add rule');
+                }
+            })
+            .catch(error => {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                showMessage('error', `Error: ${error.message}`);
+                console.error('Error adding rule:', error);
+            });
+        }
+        
+        function saveRule(ruleId) {
+            // Get the edited values from all fields
+            const editedRule = document.getElementById(`rule-edit-${ruleId}`).value;
+            const editedName = document.getElementById(`name-edit-${ruleId}`).value;
+            const editedActionTime = document.getElementById(`action_time-edit-${ruleId}`).value;
+            const editedAction = document.getElementById(`action-edit-${ruleId}`).value;
+            
+            // Basic validation
+            if (!editedRule.trim() || !editedName.trim() || !editedActionTime || !editedAction) {
+                showMessage('error', 'All fields are required');
+                return;
+            }
+            
+            if (isNaN(parseInt(editedActionTime)) || parseInt(editedActionTime) < 0) {
+                showMessage('error', 'Action time must be a positive number');
+                return;
+            }
+            
+            // Create request data
+            const requestData = {
+                rule: editedRule,
+                name: editedName,
+                action_time: editedActionTime,
+                action: editedAction
+            };
+            
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
+            
+            fetch(`/api/rules/edit/${ruleId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.message || `HTTP error! Status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                
+                if (data.success) {
+                    // Update all editable cells with the new values
+                    const ruleCell = document.getElementById(`rule-cell-${ruleId}`);
+                    ruleCell.innerHTML = escapeHTML(editedRule);
+                    ruleCell.dataset.original = editedRule;
+                    
+                    const nameCell = document.getElementById(`name-cell-${ruleId}`);
+                    nameCell.innerHTML = escapeHTML(editedName);
+                    nameCell.dataset.original = editedName;
+                    
+                    const timeCell = document.getElementById(`time-cell-${ruleId}`);
+                    timeCell.innerHTML = escapeHTML(editedActionTime);
+                    timeCell.dataset.original = editedActionTime;
+                    
+                    const actionCell = document.getElementById(`action-cell-${ruleId}`);
+                    const actionClass = `action-badge action-${editedAction.toLowerCase()}`;
+                    actionCell.innerHTML = `<span class="${actionClass}" id="action-badge-${ruleId}">${escapeHTML(editedAction)}</span>`;
+                    actionCell.dataset.original = editedAction;
+                    
+                    // Show edit/delete buttons, hide save/cancel buttons
+                    document.getElementById(`actions-${ruleId}`).style.display = 'flex';
+                    document.getElementById(`edit-actions-${ruleId}`).style.display = 'none';
+                    
+                    // Remove editing class
+                    document.getElementById(`row-${ruleId}`).classList.remove('editing');
+                    
+                    // Show success message
+                    showMessage('success', 'Rule updated successfully');
+                } else {
+                    showMessage('error', data.message || 'Failed to update rule');
+                    // Restore original content
+                    cancelEdit(ruleId);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                showMessage('error', `Error: ${error.message}`);
+                console.error('Error updating rule:', error);
+                // Restore original content
+                cancelEdit(ruleId);
+            });
+        }
+        
+        function deleteRule(ruleId) {
+            if (!confirm('Are you sure you want to delete this rule?')) {
+                return;
+            }
+            
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
+            
+            fetch(`/api/rules/delete/${ruleId}`, {
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.message || `HTTP error! Status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                
+                if (data.success) {
+                    // Show success message
+                    showMessage('success', 'Rule deleted successfully');
+                    // Refresh rules list
+                    fetchRules();
+                } else {
+                    showMessage('error', data.message || 'Failed to delete rule');
+                }
+            })
+            .catch(error => {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                showMessage('error', `Error: ${error.message}`);
+                console.error('Error deleting rule:', error);
+            });
+        }
+        
+        function showMessage(type, text) {
+            const container = document.getElementById('messageContainer');
+            const alertClass = type === 'error' ? 'error' : 'success';
+            const iconClass = type === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle';
+            
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alertClass}`;
+            alertDiv.style.padding = '10px';
+            alertDiv.style.margin = '10px 0';
+            alertDiv.style.borderRadius = '4px';
+            alertDiv.style.display = 'flex';
+            alertDiv.style.alignItems = 'center';
+            
+            if (type === 'error') {
+                alertDiv.style.backgroundColor = '#f8d7da';
+                alertDiv.style.color = '#721c24';
+                alertDiv.style.borderColor = '#f5c6cb';
+            } else {
+                alertDiv.style.backgroundColor = '#d4edda';
+                alertDiv.style.color = '#155724';
+                alertDiv.style.borderColor = '#c3e6cb';
+            }
+            
+            alertDiv.innerHTML = `
+                <i class="fas ${iconClass}" style="margin-right: 10px;"></i>
+                <span>${text}</span>
+                <button type="button" style="margin-left: auto; background: none; border: none; cursor: pointer;"
+                    onclick="this.parentElement.remove();">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            container.appendChild(alertDiv);
+            
+            // Auto-remove message after 5 seconds
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+        
+        // HTML escaping function for security
+        function escapeHTML(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+
+</html>

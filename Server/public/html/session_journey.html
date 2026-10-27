@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Journey Report</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="/js/client-security.js"></script>
+</head>
+
+<body>
+    <header>
+        <h1>Session Journey Report</h1>
+    </header>
+
+    <!-- Navigation buttons -->
+    <div style="padding: 10px; display: flex; gap: 10px;">
+        <a href="/dashboard.html" style="text-decoration: none; color: white; background-color: #007bff; padding: 8px 15px; border-radius: 5px; font-size: 16px;">Back to Dashboard</a>
+        <a href="/rawreport" style="text-decoration: none; color: white; background-color: #28a745; padding: 8px 15px; border-radius: 5px; font-size: 16px;">Back to Visitors Report</a>
+    </div>
+
+    <div class="container">
+        <form id="journeyForm" class="form-container" data-secure="true">
+            <div class="input-field">
+                <label for="session_id">Session Identifier:</label>
+                <input type="text" id="session_id" name="session_id">
+            </div>
+            <button type="submit">Search</button>
+        </form>
+
+        <div class="report" id="reportContent">
+            <!-- Loading indicator -->
+            <div id="loadingIndicator" style="text-align: center; padding: 20px;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                <p>Loading session journey data...</p>
+            </div>
+            
+            <div id="tableContainer" style="display: none;">
+                <button id="exportButton" onclick="exportTableToCSV('session_journey_report.csv')" style="background-color: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin: 10px 0;">
+                    <i class="fas fa-download"></i> Download as CSV
+                </button>
+                
+                <div style="overflow-x: auto;"> <!-- Add horizontal scroll container for small screens -->
+                    <table id="journeyTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Time Spent (seconds)</th>
+                                <th>URL Visited</th>
+                                <th>Clicked Data</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Table rows will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- No data message -->
+            <div id="noDataMessage" style="display: none; text-align: center; padding: 20px;">
+                <i class="fas fa-info-circle" style="font-size: 24px; color: #007bff;"></i>
+                <p>No journey data found for this session ID.</p>
+            </div>
+
+            <!-- Error message -->
+            <div id="errorMessage" style="display: none; text-align: center; padding: 20px; color: #dc3545;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 24px;"></i>
+                <p id="errorText">An error occurred while fetching data.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize page when DOM is loaded
+        window.onload = function() {
+            // Store current URL for refresh handling
+            sessionStorage.setItem('lastVisitedPage', window.location.href);
+
+            // Get parameters from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('session_id');
+            
+            // Set form values from URL parameters if provided
+            if (sessionId) document.getElementById('session_id').value = sessionId;
+            
+            // Fetch data from API - backend will use its defaults if parameters not provided
+            fetchJourneyData(sessionId || '');
+            
+            // Set up form submission handler
+            document.getElementById('journeyForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const sessionId = document.getElementById('session_id').value.trim();
+                
+                // Update URL with the session ID for bookmarking/sharing
+                const newUrl = window.location.pathname + (sessionId ? '?session_id=' + encodeURIComponent(sessionId) : '');
+                window.history.pushState({}, '', newUrl);
+                
+                fetchJourneyData(sessionId);
+            });
+        };
+
+        function fetchJourneyData(sessionId) {
+            // Construct the API URL
+            let apiUrl = `/api/session_journey`;
+            
+            // Only add session_id parameter if it exists
+            if (sessionId) apiUrl += `?session_id=${encodeURIComponent(sessionId)}`;
+            
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('tableContainer').style.display = 'none';
+            document.getElementById('noDataMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide loading indicator
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    
+                    if (data.success) {
+                        if (data.journeyData && data.journeyData.length > 0) {
+                            // Render table with journey data
+                            renderJourneyTable(data.journeyData);
+                            document.getElementById('tableContainer').style.display = 'block';
+                            
+                            // Update session ID input field with the actual session ID from response
+                            document.getElementById('session_id').value = data.sessionId;
+                        } else {
+                            // Show no data message
+                            document.getElementById('noDataMessage').style.display = 'block';
+                        }
+                    } else {
+                        // Show error message
+                        document.getElementById('errorText').textContent = data.message || 'An error occurred while fetching data.';
+                        document.getElementById('errorMessage').style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    // Hide loading indicator and show error message
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    document.getElementById('errorText').textContent = `Error: ${error.message}`;
+                    document.getElementById('errorMessage').style.display = 'block';
+                    console.error('Error fetching journey data:', error);
+                });
+        }
+
+        // Function to render the journey table
+        function renderJourneyTable(journeyData) {
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = ''; // Clear existing content
+            
+            let colorSwitch = false;
+            
+            journeyData.forEach((row, index) => {
+                // Calculate time spent on the page
+                let timeSpent = '-';
+                if (index < journeyData.length - 1) {
+                    const currentTime = new Date(row.timestamp);
+                    const nextTime = new Date(journeyData[index + 1].timestamp);
+                    timeSpent = Math.round((nextTime - currentTime) / 1000);
+                    
+                    // Switch color if time gap is more than 15 minutes
+                    if (timeSpent > 900) {
+                        colorSwitch = !colorSwitch;
+                    }
+                }
+                
+                // Check if row has click data
+                const isClicked = row.clickdata && row.clickdata.trim() !== '' && row.clickdata.trim() !== '""';
+                
+                // Create table row with appropriate styling
+                const tr = document.createElement('tr');
+                
+                if (isClicked) {
+                    tr.className = 'clicked-row';
+                } else {
+                    tr.style.backgroundColor = colorSwitch ? '#E6F7FF' : 'white';
+                }
+                
+                // Add cells to row
+                tr.innerHTML = `
+                    <td>${escapeHTML(row.date)}</td>
+                    <td>${escapeHTML(row.time)}</td>
+                    <td>${escapeHTML(timeSpent.toString())}</td>
+                    <td>${escapeHTML(row.url)}</td>
+                    <td>${escapeHTML(row.clickdata)}</td>
+                `;
+                
+                // Add row to table
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // Table sorting function
+        function sortTable(columnIndex, type) {
+            const table = document.getElementById("journeyTable");
+            let switching = true;
+            
+            while (switching) {
+                switching = false;
+                const rows = table.rows;
+                
+                for (let i = 1; i < (rows.length - 1); i++) {
+                    let shouldSwitch = false;
+                    const x = rows[i].getElementsByTagName("TD")[columnIndex];
+                    const y = rows[i + 1].getElementsByTagName("TD")[columnIndex];
+                    
+                    if (type === 'asc') {
+                        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    } else if (type === 'desc') {
+                        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                }
+            }
+        }
+
+        // CSV export functions
+        function exportTableToCSV(filename) {
+            const csv = [];
+            const rows = document.querySelectorAll("#journeyTable tr");
+            
+            for (let i = 0; i < rows.length; i++) {
+                const row = [];
+                const cols = rows[i].querySelectorAll("td, th");
+                
+                for (let j = 0; j < cols.length; j++) {
+                    let cellText = cols[j].innerText;
+                    cellText = cellText.replace(/"/g, '""'); // Escape double quotes
+                    row.push(`"${cellText}"`);
+                }
+                
+                csv.push(row.join(","));
+            }
+            
+            // Download CSV file
+            downloadCSV(csv.join("\n"), filename);
+        }
+        
+        function downloadCSV(csv, filename) {
+            const csvFile = new Blob([csv], { type: "text/csv" });
+            const downloadLink = document.createElement("a");
+            
+            // Set filename
+            downloadLink.download = filename;
+            
+            // Create a link to the file
+            downloadLink.href = window.URL.createObjectURL(csvFile);
+            
+            // Hide download link
+            downloadLink.style.display = "none";
+            
+            // Add the link to DOM
+            document.body.appendChild(downloadLink);
+            
+            // Click download link
+            downloadLink.click();
+            
+            // Clean up
+            document.body.removeChild(downloadLink);
+        }
+
+        // HTML escaping function for security
+        function escapeHTML(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+
+</html>

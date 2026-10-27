@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Analysis Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        
+        .dashboard-card {
+            box-shadow: 0 0 20px rgba(0,0,0,0.05);
+            border: none;
+            border-radius: 12px;
+        }
+
+        .card-header {
+            background: linear-gradient(to right, #1a237e, #3949ab) !important;
+            color: white;
+            padding: 1.5rem !important;
+            border-top-left-radius: 12px !important;
+            border-top-right-radius: 12px !important;
+        }
+
+        .card-header h4 {
+            margin: 0;
+            font-weight: 500;
+        }
+
+        .card-header small {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .table > thead {
+            background-color: #1a237e;
+        }
+
+        .table > thead th {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            color: #000000;
+            padding: 1rem;
+            border: none;
+        }
+
+        .clickable {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .clickable:hover {
+            background-color: #f8f9fa;
+        }
+
+        .score-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            color: white;
+            font-weight: 500;
+            font-size: 0.875rem;
+            display: inline-block;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .score-high { background-color: #dc3545; }
+        .score-medium { background-color: #fd7e14; }
+        .score-low { background-color: #198754; }
+
+        .details-container {
+            background: linear-gradient(to right, #f8f9fa, #ffffff);
+            border-radius: 8px;
+            margin: 10px;
+        }
+
+        .risk-factor {
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border-radius: 8px;
+            background-color: white;
+            transition: all 0.2s;
+            border: 1px solid #e9ecef;
+        }
+
+        .risk-factor.active {
+            background-color: #fff4f4;
+            color: #dc3545;
+            border-color: #ffc9c9;
+        }
+
+        .metrics-card {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            height: 100%;
+            border: 1px solid #e9ecef;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .metric-label {
+            color: #6c757d;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        .action-badge {
+            display: inline-block;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            margin: 0.25rem;
+            background-color: #e9ecef;
+            color: #495057;
+        }
+
+        .rotate-icon {
+            transition: transform 0.3s ease;
+        }
+
+        .rotate-icon.active {
+            transform: rotate(180deg);
+        }
+
+        .table > tbody > tr:hover {
+            background-color: rgba(0,0,0,0.02);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="card dashboard-card">
+            <div class="card-header">
+                <h4>Risk Analysis Dashboard</h4>
+                <small>Hostname: <%= hostname %></small>
+            </div>
+            
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Session ID</th>
+                            <th>Risk Score</th>
+                            <th>Recommended Actions</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% data.forEach(function(session, index) { %>
+                            <tr class="clickable" onclick="toggleDetails(<%=index%>)" data-bs-toggle="collapse" data-bs-target=".detail<%=index%>">
+                                <td><%= session.session_id %></td>
+                                <td>
+                                    <span class="score-badge <%= session.total_risk_score >= 8 ? 'score-high' : (session.total_risk_score >= 5 ? 'score-medium' : 'score-low') %>">
+                                        <%= session.total_risk_score %>/10
+                                    </span>
+                                </td>
+                                <td>
+                                    <% Object.entries(session.action_recommendations).forEach(function([action, probability]) { %>
+                                        <span class="action-badge">
+                                            <%= action %>: <%= probability %>%
+                                        </span>
+                                    <% }); %>
+                                </td>
+                                <td class="text-center">
+                                    <svg class="rotate-icon" id="icon<%=index%>" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </td>
+                            </tr>
+                            <tr class="collapse detail<%=index%>">
+                                <td colspan="4" class="p-0">
+                                    <div class="details-container p-4">
+                                        <div class="row g-4">
+                                            <!-- Session Metrics -->
+                                            <div class="col-12">
+                                                <h6 class="mb-3">Session Metrics</h6>
+                                                <div class="row g-3">
+                                                    <div class="col-md-3">
+                                                        <div class="metrics-card text-center">
+                                                            <div class="metric-value"><%= session.request_count %></div>
+                                                            <div class="metric-label">Total Requests</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="metrics-card text-center">
+                                                            <div class="metric-value"><%= session.distinct_ip_count %></div>
+                                                            <div class="metric-label">Distinct IPs</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="metrics-card text-center">
+                                                            <div class="metric-value"><%= session.login_attempts %></div>
+                                                            <div class="metric-label">Login Attempts</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="metrics-card text-center">
+                                                            <div class="metric-value"><%= session.session_duration %>s</div>
+                                                            <div class="metric-label">Duration</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Risk Factors -->
+                                            <div class="col-12">
+                                                <h6 class="mb-3">Risk Factors</h6>
+                                                <div class="row g-3">
+                                                    <% const riskFactors = [
+                                                        { name: 'Multiple Browser IDs', value: session.browser_risk },
+                                                        { name: 'Multiple Login Attempts', value: session.login_risk },
+                                                        { name: 'Multiple IP Addresses', value: session.ip_risk },
+                                                        { name: 'High Request Frequency', value: session.freq_risk },
+                                                        { name: 'Bot Detection', value: session.bot_risk },
+                                                        { name: 'Unusual Geolocation', value: session.geo_risk }
+                                                    ] %>
+                                                    <% riskFactors.forEach(function(factor) { %>
+                                                        <div class="col-md-4">
+                                                            <div class="risk-factor <%= factor.value > 0 ? 'active' : '' %>">
+                                                                <%= factor.name %>: <%= factor.value > 0 ? 'Yes' : 'No' %>
+                                                            </div>
+                                                        </div>
+                                                    <% }); %>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function toggleDetails(index) {
+            const icon = document.getElementById('icon' + index);
+            icon.classList.toggle('active');
+        }
+    </script>
+</body>
+</html>

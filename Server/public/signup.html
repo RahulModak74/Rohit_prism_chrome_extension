@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - Cybersecurity Platform</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f8ff;
+            padding: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        .icon-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .icon-container i {
+            font-size: 60px;
+            margin: 10px;
+            color: #007bff;
+        }
+        .cdp-explanation p {
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            color: #333;
+        }
+        form {
+            width: 100%;
+            max-width: 400px; /* Increased from 300px for wider inputs */
+            margin: 0 auto;
+        }
+        input[type="text"],
+        input[type="password"] {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 0.9em; /* Slightly smaller font to fit more text */
+        }
+        .placeholder-hint {
+            display: block;
+            margin-top: -10px;
+            margin-bottom: 15px;
+            font-size: 0.8em;
+            color: #666;
+            text-align: left;
+        }
+        input[type="submit"],
+        button {
+            padding: 12px;
+            background-color: #0056b3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        input[type="submit"]:hover,
+        button:hover {
+            background-color: #003d80;
+        }
+        h1 {
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            color: #0056b3;
+        }
+        h2 {
+            margin-bottom: 20px;
+            color: #007bff;
+        }
+        .signup-btn {
+            margin-top: 15px;
+            padding: 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .signup-btn:hover {
+            background-color: #218838;
+        }
+        .error-message {
+            color: red;
+            margin-bottom: 15px;
+            display: none; /* Hidden by default */
+        }
+        .notification {
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 12px;
+            margin-bottom: 20px;
+            text-align: left;
+            color: #333;
+            font-size: 0.95em;
+            border-radius: 4px;
+        }
+    </style>
+    <script src="/js/client-security.js"></script> 
+
+</head>
+<body>
+    <div class="container">
+        <!-- Notification Banner -->
+        <div class="notification">
+            <i class="fas fa-info-circle" style="color: #007bff; margin-right: 5px;"></i>
+            After login, you'll see the CDN link on the homepage. Add it to your website's header and reporting will begin within 15 minutes.
+        </div>
+        
+        <!-- Hero Section with Icons -->
+        <h1>Sign Up</h1>
+        <div class="icon-container">
+            <i class="fas fa-user-plus"></i>
+        </div>
+        <!-- Error Message - will be shown via JavaScript -->
+        <p id="errorMessage" class="error-message"></p>
+                
+        <!-- Sign Up Form -->
+        <form id="signupForm" data-secure="true">
+            <input type="text" name="username" placeholder="Username" required /><br>
+            <input type="password" name="password" placeholder="Password" required /><br>
+            <input type="text" name="hostname" placeholder="Hostname" required />
+            <span class="placeholder-hint">Enter full hostname (example: 'bluebotanalytics.com')</span>
+            <input type="text" name="version" placeholder="Version (optional)" /><br>
+            <button type="submit">Sign Up</button>
+        </form>
+        <!-- Go to Login Page Button -->
+        <form action="/" method="GET" style="margin-top: 15px;">
+            <button type="submit">Go to Login Page</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('signupForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = this.username.value;
+            const password = this.password.value;
+            const hostname = this.hostname.value;
+            const version = this.version.value;
+            
+            try {
+                const response = await fetch('/signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password, hostname, version })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Redirect to login page with success message
+                    window.location.href = '/?signupSuccess=true';
+                } else {
+                    // Show error message
+                    const errorElement = document.getElementById('errorMessage');
+                    errorElement.textContent = data.message || 'An error occurred during signup';
+                    errorElement.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error during signup:', error);
+                const errorElement = document.getElementById('errorMessage');
+                errorElement.textContent = 'An error occurred during signup. Please try again.';
+                errorElement.style.display = 'block';
+            }
+        });
+        
+        // Check for error message in URL (if redirected back with error)
+        const urlParams = new URLSearchParams(window.location.search);
+        const errorMsg = urlParams.get('error');
+        if (errorMsg) {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = decodeURIComponent(errorMsg);
+            errorElement.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

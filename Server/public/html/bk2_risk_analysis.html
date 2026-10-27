@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Analysis Dashboard</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="/js/client-security.js"></script>
+</head>
+
+<body>
+    <header>
+        <h1>Risk Analysis Dashboard</h1>
+    </header>
+
+    <!-- Navigation buttons -->
+    <div style="padding: 10px; display: flex; gap: 10px;">
+        <a href="/dashboard.html" style="text-decoration: none; color: white; background-color: #007bff; padding: 8px 15px; border-radius: 5px; font-size: 16px;">Back to Dashboard</a>
+    </div>
+
+    <!-- Flash Messages -->
+    <div class="flash-messages" id="flashMessages" style="position: fixed; top: 20px; right: 20px; z-index: 1050; min-width: 300px;">
+        <!-- Flash messages will be added dynamically by JavaScript -->
+    </div>
+
+    <div class="container-fluid py-4">
+        <button id="refreshBtn" style="background-color: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 20px 0;">Refresh Data</button>
+
+        <div class="card" style="box-shadow: 0 0 20px rgba(0, 0, 0, 0.05); border: none; border-radius: 12px;">
+            <div class="card-header" style="background: linear-gradient(to right, #1a237e, #3949ab) !important; color: white; padding: 1.5rem !important; border-top-left-radius: 12px !important; border-top-right-radius: 12px !important;">
+                <h4 style="margin: 0; font-weight: 500;">Risk Analysis Dashboard</h4>
+                <small id="hostnameDisplay" style="color: rgba(255, 255, 255, 0.8);">Hostname: Loading...</small>
+            </div>
+
+            <div class="card-body p-0">
+                <!-- Loading indicator -->
+                <div id="loadingIndicator" style="text-align: center; padding: 20px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                    <p>Loading risk analysis data...</p>
+                </div>
+                
+                <!-- No data message -->
+                <div id="noDataMessage" style="display: none; text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 24px; color: #007bff;"></i>
+                    <p>No risk data found for the selected criteria.</p>
+                </div>
+
+                <!-- Error message -->
+                <div id="errorMessage" style="display: none; text-align: center; padding: 20px; color: #dc3545;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p id="errorText">An error occurred while fetching data.</p>
+                </div>
+
+                <table class="table table-hover mb-0" id="riskTable" style="display: none;">
+                    <thead style="background-color: #f8f9fa;">
+                        <tr>
+                            <th style="font-weight: 600; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.5px; color: #000000; padding: 1rem; border: none;">Session ID</th>
+                            <th style="font-weight: 600; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.5px; color: #000000; padding: 1rem; border: none;">Risk Score</th>
+                            <th style="font-weight: 600; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.5px; color: #000000; padding: 1rem; border: none;">Actions</th>
+                            <th style="font-weight: 600; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.5px; color: #000000; padding: 1rem; border: none;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="riskTableBody">
+                        <!-- Table rows will be populated by JavaScript -->
+                    </tbody>
+                </table>
+
+                <!-- Pagination Controls -->
+                <nav aria-label="Page navigation" class="d-flex justify-content-center py-3" id="pagination">
+                    <!-- Pagination will be populated by JavaScript -->
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize page when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Store current URL for refresh handling
+            sessionStorage.setItem('lastVisitedPage', window.location.href);
+
+            // Get parameters from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const page = urlParams.get('page') || 1;
+            
+            // Fetch data from API
+            fetchRiskAnalysisData(page);
+            
+            // Set up refresh button handler
+            document.getElementById('refreshBtn').addEventListener('click', function() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const page = urlParams.get('page') || 1;
+                fetchRiskAnalysisData(page);
+            });
+        });
+
+        function fetchRiskAnalysisData(page) {
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('riskTable').style.display = 'none';
+            document.getElementById('noDataMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+
+            // Construct API URL
+            let apiUrl = `/api/risk-analysis?page=${page}`;
+            
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide loading indicator
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    
+                    if (data.success) {
+                        // Show hostname info
+                        document.getElementById('hostnameDisplay').textContent = `Hostname: ${data.hostname}`;
+                        
+                        if (data.riskData && data.riskData.length > 0) {
+                            // Debug log to check bayesianScores
+                            console.log('Bayesian Scores from API:', data.bayesianScores);
+                            
+                            // Render risk data table
+                            renderRiskTable(data.riskData, data.aiScores || {}, data.bayesianScores || {});
+                            document.getElementById('riskTable').style.display = 'table';
+                            
+                            // Render pagination
+                            renderPagination(
+                                data.currentPage, 
+                                data.totalPages
+                            );
+                        } else {
+                            // Show no data message
+                            document.getElementById('noDataMessage').style.display = 'block';
+                            document.getElementById('pagination').innerHTML = '';
+                        }
+                    } else {
+                        // Show error message
+                        document.getElementById('errorText').textContent = data.message || 'An error occurred while fetching data.';
+                        document.getElementById('errorMessage').style.display = 'block';
+                        document.getElementById('pagination').innerHTML = '';
+                    }
+                })
+                .catch(error => {
+                    // Hide loading indicator and show error message
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    document.getElementById('errorText').textContent = `Error: ${error.message}`;
+                    document.getElementById('errorMessage').style.display = 'block';
+                    document.getElementById('pagination').innerHTML = '';
+                    console.error('Error fetching risk analysis data:', error);
+                });
+        }
+
+        function renderRiskTable(riskData, aiScores, bayesianScores) {
+            const tableBody = document.getElementById('riskTableBody');
+            tableBody.innerHTML = '';
+            
+            riskData.forEach((session, index) => {
+                // Create main row (clickable row with session info)
+                const mainRow = document.createElement('tr');
+                mainRow.style.cursor = 'pointer';
+                mainRow.style.transition = 'all 0.2s';
+                mainRow.setAttribute('onclick', `toggleDetails(${index})`);
+                mainRow.addEventListener('mouseenter', function() {
+                    this.style.backgroundColor = '#f8f9fa';
+                });
+                mainRow.addEventListener('mouseleave', function() {
+                    this.style.backgroundColor = '';
+                });
+                
+                // Create session ID cell
+                const sessionCell = document.createElement('td');
+                sessionCell.setAttribute('onclick', 'event.stopPropagation()');
+                
+                const sessionLink = document.createElement('a');
+                sessionLink.href = `/session_journey?session_id=${encodeURIComponent(session.session_id)}`;
+                sessionLink.style.textDecoration = 'none';
+                sessionLink.innerHTML = `
+                    ${escapeHTML(session.session_id)}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                        fill="currentColor" viewBox="0 0 16 16"
+                        style="margin-left: 4px; vertical-align: middle;">
+                        <path d="M4.5 1.5A.5.5 0 0 0 4 2v4.5h1V2a.5.5 0 0 0-.5-.5zm2 0A.5.5 0 0 0 6 2v4.5h1V2a.5.5 0 0 0-.5-.5zm-4 5A.5.5 0 0 0 2 7v4.5h1V7a.5.5 0 0 0-.5-.5zm2 0A.5.5 0 0 0 4 7v4.5h1V7a.5.5 0 0 0-.5-.5zm4-5A.5.5 0 0 0 10 2v4.5h1V2a.5.5 0 0 0-.5-.5z" />
+                    </svg>
+                `;
+                
+                sessionCell.appendChild(sessionLink);
+                
+                // Create risk score cell
+                const scoreCell = document.createElement('td');
+                
+                // Add regular risk score
+                const scoreBadge = document.createElement('span');
+                const scoreClass = session.total_risk_score >= 8 ? '#dc3545' : (session.total_risk_score >= 5 ? '#fd7e14' : '#198754');
+                scoreBadge.style.cssText = `
+                    padding: 6px 12px;
+                    border-radius: 20px;
+                    color: white;
+                    font-weight: 500;
+                    font-size: 0.875rem;
+                    display: inline-block;
+                    min-width: 80px;
+                    text-align: center;
+                    background-color: ${scoreClass};
+                `;
+                scoreBadge.textContent = `${session.total_risk_score}/10`;
+                scoreCell.appendChild(scoreBadge);
+                
+                // Add AI score if available
+                if (aiScores && aiScores[session.session_id] !== undefined && aiScores[session.session_id] !== null) {
+                    const aiScoreValue = aiScores[session.session_id];
+                    if (aiScoreValue !== '') {
+                        const score = parseInt(aiScoreValue) || 0;
+                        const aiScoreClass = score >= 8 ? '#dc3545' : (score >= 5 ? '#fd7e14' : '#198754');
+                        
+                        const aiScoreBadge = document.createElement('span');
+                        aiScoreBadge.style.cssText = `
+                            padding: 6px 12px;
+                            border-radius: 20px;
+                            color: white;
+                            font-weight: 500;
+                            font-size: 0.875rem;
+                            display: inline-block;
+                            min-width: 80px;
+                            text-align: center;
+                            background-color: ${aiScoreClass};
+                            margin-left: 5px;
+                        `;
+                        aiScoreBadge.textContent = `AI: ${aiScoreValue}/10`;
+                        
+                        scoreCell.appendChild(aiScoreBadge);
+                    }
+                }
+
+                // Add Bayesian score if available
+                if (bayesianScores && bayesianScores[session.session_id] !== undefined && bayesianScores[session.session_id] !== null) {
+                    const bayesianScore = bayesianScores[session.session_id];
+                    console.log('Rendering Bayesian score for session:', session.session_id, 'Score:', bayesianScore);
+                    
+                    if (bayesianScore !== '' && bayesianScore !== undefined) {
+                        const probability = parseFloat(bayesianScore) || 0;
+                        // Updated color coding for better visibility of low scores
+                        const bayesianScoreClass = probability >= 50 ? '#dc3545' : (probability >= 10 ? '#fd7e14' : (probability >= 1 ? '#ffc107' : '#198754'));
+                        
+                        const bayesianScoreBadge = document.createElement('span');
+                        bayesianScoreBadge.style.cssText = `
+                            padding: 6px 12px;
+                            border-radius: 20px;
+                            color: ${probability >= 1 && probability < 10 ? 'black' : 'white'};
+                            font-weight: 500;
+                            font-size: 0.875rem;
+                            display: inline-block;
+                            min-width: 80px;
+                            text-align: center;
+                            background-color: ${bayesianScoreClass};
+                            margin-left: 5px;
+                        `;
+                        bayesianScoreBadge.textContent = `Bayesian Risk : ${bayesianScore}`;
+                        
+                        scoreCell.appendChild(bayesianScoreBadge);
+                    }
+                }
+                
+                // Create actions cell
+                const actionsCell = document.createElement('td');
+                actionsCell.innerHTML = `
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                        <form method="POST" action="/risk-analysis" style="display: inline;"
+                            onsubmit="return handleTerminateSession(event, '${escapeHTML(session.session_id)}')">
+                            <input type="hidden" name="sessionId" value="${escapeHTML(session.session_id)}">
+                            <button type="submit" style="background-color: #dc3545; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.75rem; min-width: 80px; white-space: nowrap;">Terminate</button>
+                        </form>
+
+                        <form method="POST" action="/send-captcha-session" style="display: inline;"
+                            onsubmit="return handleCaptchaSubmit(event, '${escapeHTML(session.session_id)}')">
+                            <input type="hidden" name="sessionId" value="${escapeHTML(session.session_id)}">
+                            <button type="submit" style="background-color: #0d6efd; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.75rem; min-width: 80px; white-space: nowrap;">Captcha</button>
+                        </form>
+
+                        <form method="POST" action="/internal-algo-check" style="display: inline;"
+                            onsubmit="return handleAiScoreSubmit(event, '${escapeHTML(session.session_id)}', this)">
+                            <input type="hidden" name="sessionId" value="${escapeHTML(session.session_id)}">
+                            <button type="submit" id="ai-score-btn-${escapeHTML(session.session_id).replace(/[^a-zA-Z0-9]/g, '_')}" style="background-color: #6c757d; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.75rem; min-width: 80px; white-space: nowrap;">AI Score</button>
+                        </form>
+
+                        <form method="POST" action="/bayesian-ai-check" style="display: inline;"
+                            onsubmit="return handleBayesianAiSubmit(event, '${escapeHTML(session.session_id)}', this)">
+                            <input type="hidden" name="sessionId" value="${escapeHTML(session.session_id)}">
+                            <button type="submit" id="bayesian-btn-${escapeHTML(session.session_id).replace(/[^a-zA-Z0-9]/g, '_')}" style="background-color: #20c997; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.75rem; min-width: 80px; white-space: nowrap;">Bayesian AI</button>
+                        </form>
+                    </div>
+                `;
+                
+                // Create expand/collapse icon cell
+                const toggleCell = document.createElement('td');
+                toggleCell.style.textAlign = 'center';
+                toggleCell.innerHTML = `
+                    <svg id="icon${index}" width="20" height="20"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="transition: transform 0.3s ease;">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                `;
+                
+                // Assemble main row
+                mainRow.appendChild(sessionCell);
+                mainRow.appendChild(scoreCell);
+                mainRow.appendChild(actionsCell);
+                mainRow.appendChild(toggleCell);
+                
+                // Create details row (hidden by default)
+                const detailsRow = document.createElement('tr');
+                detailsRow.className = `collapse detail${index}`;
+                
+                // Create details content
+                const detailsContent = `
+                    <td colspan="5" class="p-0">
+                        <div style="background: linear-gradient(to right, #f8f9fa, #ffffff); border-radius: 8px; margin: 10px; padding: 1.5rem;">
+                            <div class="row g-4">
+                                <!-- Session Metrics -->
+                                <div class="col-12">
+                                    <h6 class="mb-3">Session Metrics</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <div style="background-color: white; padding: 1rem; border-radius: 8px; height: 100%; border: 1px solid #e9ecef; text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: 600; color: #495057;">
+                                                    ${escapeHTML(((session.url_change_count !== undefined) ? 
+                                                        session.url_change_count : 0).toString())}
+                                                </div>
+                                                <div style="color: #6c757d; font-size: 0.875rem; margin-top: 0.25rem;">Total Requests</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div style="background-color: white; padding: 1rem; border-radius: 8px; height: 100%; border: 1px solid #e9ecef; text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: 600; color: #495057;">
+                                                    ${escapeHTML(((session.distinct_ip_count !== undefined) ? 
+                                                        session.distinct_ip_count : 0).toString())}
+                                                </div>
+                                                <div style="color: #6c757d; font-size: 0.875rem; margin-top: 0.25rem;">Distinct IPs</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div style="background-color: white; padding: 1rem; border-radius: 8px; height: 100%; border: 1px solid #e9ecef; text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: 600; color: #495057;">
+                                                    ${escapeHTML(((session.login_attempts !== undefined) ? 
+                                                        session.login_attempts : 0).toString())}
+                                                </div>
+                                                <div style="color: #6c757d; font-size: 0.875rem; margin-top: 0.25rem;">Login Attempts</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div style="background-color: white; padding: 1rem; border-radius: 8px; height: 100%; border: 1px solid #e9ecef; text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: 600; color: #495057;">
+                                                    ${escapeHTML(((session.session_duration !== undefined) ? 
+                                                        session.session_duration : 0).toString())}s
+                                                </div>
+                                                <div style="color: #6c757d; font-size: 0.875rem; margin-top: 0.25rem;">Duration</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Risk Factors -->
+                                <div class="col-12">
+                                    <h6 class="mb-3">Risk Factors</h6>
+                                    <div class="row g-3">
+                                        ${renderRiskFactors(session)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                `;
+                
+                detailsRow.innerHTML = detailsContent;
+                
+                // Add rows to table
+                tableBody.appendChild(mainRow);
+                tableBody.appendChild(detailsRow);
+            });
+            
+            // Prevent clicks from propagating
+            document.querySelectorAll('form').forEach(form => {
+                form.addEventListener('click', function(event) {
+                    event.stopPropagation();
+                });
+            });
+            
+            document.querySelectorAll('button[type="submit"]').forEach(button => {
+                button.addEventListener('click', function(event) {
+                    event.stopPropagation();
+                });
+            });
+        }
+        
+        function renderRiskFactors(session) {
+            const riskFactors = [
+                { name: 'Multiple Browser IDs', value: session.browser_risk || 0 },
+                { name: 'Multiple Login Attempts', value: session.login_risk || 0 },
+                { name: 'Multiple IP Addresses', value: session.ip_risk || 0 },
+                { name: 'High Request Frequency', value: session.freq_risk || 0 },
+                { name: 'Bot Detection', value: session.bot_risk || 0 },
+                { name: 'Unusual Geolocation', value: session.geo_risk || 0 },
+                { name: 'XSS Attack', value: session.xss_risk || 0 },
+                { name: 'Redirect Attack', value: session.redirect_risk || 0 },
+                { name: 'SSRF Attack', value: session.ssrf_risk || 0 },
+                { name: 'SQL Injection', value: session.sqli_risk || 0 }
+            ];
+            
+            let html = '';
+            
+            riskFactors.forEach(factor => {
+                const isActive = factor.value > 0;
+                const riskFactorStyle = isActive ? 
+                    'padding: 0.75rem; margin: 0.5rem 0; border-radius: 8px; background-color: #fff4f4; color: #dc3545; border: 1px solid #ffc9c9; transition: all 0.2s;' :
+                    'padding: 0.75rem; margin: 0.5rem 0; border-radius: 8px; background-color: white; transition: all 0.2s; border: 1px solid #e9ecef;';
+                
+                html += `
+                <div class="col-md-4">
+                    <div style="${riskFactorStyle}">
+                        ${escapeHTML(factor.name)}: ${factor.value > 0 ? 'Yes' : 'No'}
+                    </div>
+                </div>
+                `;
+            });
+            
+            // Add one more factor
+            html += `
+            <div class="col-md-4">
+                <div style="padding: 0.75rem; margin: 0.5rem 0; border-radius: 8px; background-color: white; transition: all 0.2s; border: 1px solid #e9ecef;">
+                    Web Cache Poisoning: No
+                </div>
+            </div>
+            `;
+            
+            return html;
+        }
+
+        function renderPagination(currentPage, totalPages) {
+            if (totalPages <= 0) {
+                document.getElementById('pagination').innerHTML = '';
+                return;
+            }
+            
+            currentPage = parseInt(currentPage);
+            let html = `
+            <ul class="pagination">
+                <!-- Previous page button -->
+                ${currentPage > 1 ? 
+                `<li class="page-item">
+                    <a class="page-link" href="/risk-analysis?page=${currentPage - 1}" aria-label="Previous" onclick="changePage(${currentPage - 1}); return false;">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>` : 
+                `<li class="page-item disabled">
+                    <a class="page-link" href="#" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>`}
+                
+                <!-- First page -->
+                <li class="page-item ${currentPage === 1 ? 'active' : ''}">
+                    <a class="page-link" href="/risk-analysis?page=1" onclick="changePage(1); return false;">1</a>
+                </li>
+            `;
+            
+            // Ellipsis for many pages at beginning
+            if (currentPage > 4) {
+                html += `
+                <li class="page-item disabled">
+                    <a class="page-link" href="#">...</a>
+                </li>
+                `;
+            }
+            
+            // Pages around current page
+            for (let i = Math.max(2, currentPage - 2); i <= Math.min(totalPages - 1, currentPage + 2); i++) {
+                html += `
+                <li class="page-item ${currentPage === i ? 'active' : ''}">
+                    <a class="page-link" href="/risk-analysis?page=${i}" onclick="changePage(${i}); return false;">${i}</a>
+                </li>
+                `;
+            }
+            
+            // Ellipsis for many pages at end
+            if (currentPage < totalPages - 3) {
+                html += `
+                <li class="page-item disabled">
+                    <a class="page-link" href="#">...</a>
+                </li>
+                `;
+            }
+            
+            // Last page (if more than 1 page)
+            if (totalPages > 1) {
+                html += `
+                <li class="page-item ${currentPage === totalPages ? 'active' : ''}">
+                    <a class="page-link" href="/risk-analysis?page=${totalPages}" onclick="changePage(${totalPages}); return false;">${totalPages}</a>
+                </li>
+                `;
+            }
+            
+            // Next page button
+            html += `
+                ${currentPage < totalPages ? 
+                `<li class="page-item">
+                    <a class="page-link" href="/risk-analysis?page=${currentPage + 1}" aria-label="Next" onclick="changePage(${currentPage + 1}); return false;">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>` : 
+                `<li class="page-item disabled">
+                    <a class="page-link" href="#" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>`}
+            </ul>
+            `;
+            
+            document.getElementById('pagination').innerHTML = html;
+        }
+        
+        function changePage(page) {
+            // Update URL
+            const newUrl = `/risk-analysis?page=${page}`;
+            window.history.pushState({}, '', newUrl);
+            
+            // Fetch data for the new page
+            fetchRiskAnalysisData(page);
+        }
+        
+        // Toggle details function
+        function toggleDetails(index) {
+            const detailsRow = document.querySelector(`.detail${index}`);
+            const icon = document.getElementById(`icon${index}`);
+            
+            if (detailsRow.classList.contains('show')) {
+                detailsRow.classList.remove('show');
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                detailsRow.classList.add('show');
+                icon.style.transform = 'rotate(180deg)';
+            }
+        }
+        
+        // Handle terminate session
+        function handleTerminateSession(event, sessionId) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            if (!confirm('Are you sure you want to terminate this session?')) {
+                return false;
+            }
+            
+            fetch('/risk-analysis', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ sessionId })
+            })
+            .then(response => {
+                if (response.redirected) {
+                    // If we're redirected, follow the redirect
+                    window.location.href = response.url;
+                } else if (response.ok) {
+                    // If we get a successful response, show success message
+                    return response.json().then(data => {
+                        showFlashMessage(data.message || 'Session terminated successfully', 'success');
+                        fetchRiskAnalysisData(getCurrentPage());
+                    });
+                } else {
+                    // If we get an error response, show error message
+                    return response.json().then(data => {
+                        showFlashMessage(data.message || 'Failed to terminate session', 'danger');
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showFlashMessage('Error terminating session', 'danger');
+            });
+            
+            return false;
+        }
+        
+        // Handle captcha submission
+        function handleCaptchaSubmit(event, sessionId) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            fetch('/send-captcha-session', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ sessionId })
+            })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else if (response.ok) {
+                    return response.json().then(data => {
+                        showFlashMessage(data.message || 'CAPTCHA sent successfully', 'success');
+                    });
+                } else {
+                    return response.json().then(data => {
+                        showFlashMessage(data.message || 'Failed to send CAPTCHA', 'danger');
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showFlashMessage('Error sending CAPTCHA', 'danger');
+            });
+            
+            return false;
+        }
+        
+        // Handle AI score submission with processing indicator
+        function handleAiScoreSubmit(event, sessionId, form) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // Get the button element
+            const button = form.querySelector(`#ai-score-btn-${sessionId.replace(/[^a-zA-Z0-9]/g, '_')}`);
+            
+            // Show processing state
+            const originalText = button.innerHTML;
+            button.innerHTML = `<span style="width: 1rem; height: 1rem; border: 0.2em solid currentColor; border-right-color: transparent; border-radius: 50%; display: inline-block; animation: spin 0.75s linear infinite; margin-right: 5px; vertical-align: middle;"></span> Processing...`;
+            button.disabled = true;
+            button.style.backgroundColor = '#6c757d';
+            button.style.cursor = 'not-allowed';
+            button.style.opacity = '0.7';
+            
+            fetch('/internal-algo-check', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ sessionId })
+            })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    // Regardless of the response, refresh the data to show updated AI scores
+                    fetchRiskAnalysisData(getCurrentPage());
+                    
+                    if (response.ok) {
+                        return response.json().then(data => {
+                            showFlashMessage(data.message || 'AI scoring completed.', 'success');
+                        }).catch(() => {
+                            // If we can't parse the JSON, still show a success message
+                            showFlashMessage('AI scoring initiated. This may take a moment.', 'info');
+                        });
+                    } else {
+                        return response.json().then(data => {
+                            showFlashMessage(data.message || 'Failed to complete AI scoring', 'danger');
+                        }).catch(() => {
+                            showFlashMessage('Failed to complete AI scoring', 'danger');
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showFlashMessage('Error initiating AI scoring', 'danger');
+            })
+            .finally(() => {
+                // Reset button state
+                button.innerHTML = originalText;
+                button.disabled = false;
+                button.style.backgroundColor = '#6c757d';
+                button.style.cursor = 'pointer';
+                button.style.opacity = '1';
+            });
+            
+            return false;
+        }
+        
+        // Enhanced Handle Bayesian AI submission with processing indicator and detailed feedback
+        function handleBayesianAiSubmit(event, sessionId, form) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // Get the button element
+            const button = form.querySelector(`#bayesian-btn-${sessionId.replace(/[^a-zA-Z0-9]/g, '_')}`);
+            
+            // Show processing state
+            const originalText = button.innerHTML;
+            button.innerHTML = `<span style="width: 1rem; height: 1rem; border: 0.2em solid currentColor; border-right-color: transparent; border-radius: 50%; display: inline-block; animation: spin 0.75s linear infinite; margin-right: 5px; vertical-align: middle;"></span> Analyzing...`;
+            button.disabled = true;
+            button.style.backgroundColor = '#6c757d';
+            button.style.cursor = 'not-allowed';
+            button.style.opacity = '0.7';
+            
+            fetch('/bayesian-ai-check', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ sessionId })
+            })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    if (response.ok) {
+                        return response.json().then(data => {
+                            // Show detailed success message with all the analysis data
+                            if (data.success && data.score !== undefined) {
+                                let message = `Bayesian Analysis Complete - Attack Probability: ${data.score}%`;
+                                if (data.riskLevel) {
+                                    message += ` (Risk Level: ${data.riskLevel})`;
+                                }
+                                if (data.confidence) {
+                                    message += ` | Confidence: ${data.confidence}%`;
+                                }
+                                showFlashMessage(message, 'success');
+                                
+                                // Show recommendation if available
+                                if (data.recommendation) {
+                                    setTimeout(() => {
+                                        showFlashMessage(`Recommendation: ${data.recommendation}`, 'info');
+                                    }, 1000);
+                                }
+                            } else {
+                                showFlashMessage(data.message || 'Bayesian AI analysis completed.', 'success');
+                            }
+                            
+                            // Refresh the data to show updated Bayesian scores
+                            fetchRiskAnalysisData(getCurrentPage());
+                        }).catch(() => {
+                            // If we can't parse the JSON, still show a success message
+                            showFlashMessage('Bayesian AI analysis initiated. This may take a moment.', 'info');
+                            fetchRiskAnalysisData(getCurrentPage());
+                        });
+                    } else {
+                        return response.json().then(data => {
+                            showFlashMessage(data.message || 'Failed to complete Bayesian AI analysis', 'danger');
+                        }).catch(() => {
+                            showFlashMessage('Failed to complete Bayesian AI analysis', 'danger');
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showFlashMessage('Error initiating Bayesian AI analysis', 'danger');
+            })
+            .finally(() => {
+                // Reset button state
+                button.innerHTML = originalText;
+                button.disabled = false;
+                button.style.backgroundColor = '#20c997';
+                button.style.cursor = 'pointer';
+                button.style.opacity = '1';
+            });
+            
+            return false;
+        }
+        
+        // Get current page from URL
+        function getCurrentPage() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('page') || 1;
+        }
+        
+        // Function to create and show flash message
+        function showFlashMessage(message, type) {
+            const flashContainer = document.getElementById('flashMessages');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} alert-dismissible fade show`;
+            alert.style.cssText = 'margin-bottom: 10px; padding: 15px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); animation: slideIn 0.5s ease-out;';
+            alert.innerHTML = `
+                ${escapeHTML(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            flashContainer.appendChild(alert);
+
+            // Auto-hide after 8 seconds for info messages, 5 seconds for others
+            const hideTimeout = type === 'info' ? 8000 : 5000;
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.remove();
+                }
+            }, hideTimeout);
+        }
+        
+        // HTML escaping function for security
+        function escapeHTML(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Add CSS animation for spinner
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            @keyframes slideIn {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+
+</html>

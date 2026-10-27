@@ -1,0 +1,760 @@
+I extracted the ClickHouse structures from your output and removed the `.inner_id.*` tables. Below is the cleaned DDL for all 31 remaining tables and materialized views, preserving the original columns, data types, engines, sorting keys, TTLs, defaults, and view definitions.
+
+Database: `default`
+
+## 1. Email and messaging tables
+
+### `EMAILS10`
+
+```
+CREATE TABLE default.EMAILS10
+(
+    ip_address String,
+    timestamp DateTime64(3, 'UTC'),
+    url String,
+    session_id String,
+    browser_id String,
+    fingerprint_id String,
+    email_addresses Array(String)
+)
+ENGINE = MergeTree
+ORDER BY (session_id, ip_address);
+```
+
+### `MOBILES10`
+
+```
+CREATE TABLE default.MOBILES10
+(
+    ip_address String,
+    timestamp DateTime64(3, 'UTC'),
+    url String,
+    session_id String,
+    browser_id String,
+    fingerprint_id String,
+    mobile_numbers Array(String)
+)
+ENGINE = MergeTree
+ORDER BY (session_id, timestamp);
+```
+
+### `WHATSAPP_MESSAGES_LOG`
+
+```
+CREATE TABLE default.WHATSAPP_MESSAGES_LOG
+(
+    mobile_number String,
+    message_content String,
+    sent_at DateTime DEFAULT now(),
+    message_id String DEFAULT '',
+    status String DEFAULT 'sent',
+    timestamp DateTime DEFAULT now(),
+    error_details String DEFAULT '',
+    retry_count UInt8 DEFAULT 0
+)
+ENGINE = MergeTree
+ORDER BY mobile_number;
+```
+
+### `email_campaigns`
+
+```
+CREATE TABLE default.email_campaigns
+(
+    campaign_id String,
+    client_id String,
+    campaign_name String,
+    template_name String,
+    email_list_name String,
+    website_url String,
+    created_at DateTime DEFAULT now()
+)
+ENGINE = MergeTree
+ORDER BY (campaign_id, created_at);
+```
+
+### `email_clients`
+
+```
+CREATE TABLE default.email_clients
+(
+    client_id String,
+    client_name String,
+    created_at DateTime DEFAULT now(),
+    status String DEFAULT 'active'
+)
+ENGINE = MergeTree
+ORDER BY (client_id, created_at);
+```
+
+### `email_logs`
+
+```
+CREATE TABLE default.email_logs
+(
+    id UUID DEFAULT generateUUIDv4(),
+    email String,
+    name String,
+    status Enum8('failed' = 0, 'sent' = 1),
+    error_message String,
+    sent_at DateTime DEFAULT now()
+)
+ENGINE = MergeTree
+ORDER BY (sent_at, email);
+```
+
+### `email_tracking`
+
+```
+CREATE TABLE default.email_tracking
+(
+    tracking_id String,
+    campaign_id String,
+    email String,
+    recipient_name String,
+    subject String,
+    status String,
+    sent_at DateTime DEFAULT now(),
+    opened_at Nullable(DateTime),
+    unique_token String
+)
+ENGINE = MergeTree
+ORDER BY (tracking_id, sent_at);
+```
+
+## 2. Session and tracking tables
+
+### `historical_sessions_data`
+
+```
+CREATE TABLE default.historical_sessions_data
+(
+    session_id String,
+    hostname String,
+    url String,
+    clickdata String,
+    first_activity DateTime,
+    last_activity DateTime,
+    created_at DateTime DEFAULT now(),
+    user_id String DEFAULT '',
+    browser_name String DEFAULT '',
+    os_name String DEFAULT '',
+    device_type String DEFAULT ''
+)
+ENGINE = MergeTree
+ORDER BY (created_at, session_id);
+```
+
+### `live_sessions_data` — Materialized View
+
+```
+CREATE MATERIALIZED VIEW default.live_sessions_data
+(
+    session_id String,
+    browser_id String,
+    last_activity DateTime64(3, 'UTC'),
+    first_activity DateTime64(3, 'UTC'),
+    url String,
+    referrer String,
+    ip_address String,
+    user_agent String,
+    hostname String,
+    clickdata String,
+    clickdata_type String,
+    insert_time DateTime
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(last_activity)
+ORDER BY (session_id, browser_id, last_activity)
+TTL toDateTime(last_activity) + INTERVAL 15 MINUTE
+AS
+SELECT
+    session_id,
+    browser_id,
+    timestamp AS last_activity,
+    min(timestamp) OVER (
+        PARTITION BY session_id, browser_id
+    ) AS first_activity,
+    url,
+    referrer,
+    ip_address,
+    user_agent,
+    hostname,
+    clickdata,
+    JSONExtractString(clickdata, 'type') AS clickdata_type,
+    now() AS insert_time
+FROM default.tracking10;
+```
+
+### `live_sessions_mv_new` — Materialized View
+
+```
+CREATE MATERIALIZED VIEW default.live_sessions_mv_new
+(
+    session_id String,
+    browser_id String,
+    timestamp DateTime64(3),
+    last_activity DateTime64(3),
+    first_activity DateTime64(3),
+    url String,
+    referrer String,
+    ip_address String,
+    user_agent String,
+    hostname String,
+    platform String,
+    language String,
+    fingerprint_id String,
+    clickdata String,
+    enhanced_data_id Int64
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY timestamp
+TTL toDateTime(timestamp) + INTERVAL 5 MINUTE
+AS
+SELECT
+    t.session_id,
+    t.browser_id,
+    t.timestamp,
+    t.timestamp AS last_activity,
+    t.timestamp AS first_activity,
+    t.url,
+    t.referrer,
+    t.ip_address,
+    t.user_agent,
+    t.hostname,
+    t.platform,
+    t.language,
+    t.fingerprint_id,
+    t.clickdata,
+    t.enhanced_data_id
+FROM default.tracking10 AS t;
+```
+
+### `tracking10`
+
+```
+CREATE TABLE default.tracking10
+(
+    id Int32,
+    timestamp DateTime64(3, 'UTC'),
+    url String,
+    referrer String,
+    ip_address String,
+    user_agent String,
+    platform String,
+    language String,
+    hostname String,
+    session_id String,
+    browser_id String,
+    fingerprint_id String,
+    clickdata String,
+    enhanced_data_id Int64,
+    nudge_action String DEFAULT ''
+)
+ENGINE = MergeTree
+ORDER BY id
+TTL timestamp + INTERVAL 7 DAY
+WHERE hostname NOT LIKE '%myraymond%';
+```
+
+### `urls_with_emails10`
+
+```
+CREATE TABLE default.urls_with_emails10
+(
+    id Int32,
+    timestamp DateTime64(3, 'UTC'),
+    url String,
+    referrer String,
+    ip_address String,
+    user_agent String,
+    platform String,
+    language String,
+    hostname String,
+    session_id String,
+    browser_id String,
+    fingerprint_id String,
+    clickdata String
+)
+ENGINE = MergeTree
+ORDER BY id;
+```
+
+### `urls_with_mobile10`
+
+```
+CREATE TABLE default.urls_with_mobile10
+(
+    id Int32,
+    timestamp DateTime64(3, 'UTC'),
+    url String,
+    referrer String,
+    ip_address String,
+    user_agent String,
+    platform String,
+    language String,
+    hostname String,
+    session_id String,
+    browser_id String,
+    fingerprint_id String,
+    clickdata String
+)
+ENGINE = MergeTree
+ORDER BY id;
+```
+
+## 3. Security tables
+
+### `alerts`
+
+```
+CREATE TABLE default.alerts
+(
+    alert_name String,
+    url String,
+    ip_address String,
+    session_id String,
+    fingerprint_id String,
+    timestamp DateTime64(3, 'UTC')
+)
+ENGINE = MergeTree
+ORDER BY timestamp;
+```
+
+### `security_headers`
+
+```
+CREATE TABLE default.security_headers
+(
+    id Int32,
+    tracking_id Int64,
+    session_id String,
+    security_cors_origin String,
+    security_allow_origin String,
+    security_allow_methods String,
+    security_allow_headers String,
+    security_allow_credentials UInt8,
+    security_expose_headers String,
+    security_max_age Int32,
+    security_frame_ancestors String,
+    security_csp String,
+    security_referrer_policy String,
+    security_permissions_policy String,
+    security_cross_origin String,
+    security_is_framed UInt8,
+    security_sandbox String,
+    dom_changes_count Int32 DEFAULT 0,
+    dom_monitoring_active UInt8 DEFAULT 1,
+    dom_last_change DateTime64(3),
+    dom_added_elements String,
+    dom_removed_elements String,
+    dom_modified_attributes String,
+    dom_sensitive_changes String,
+    dom_security_violations String,
+    timestamp DateTime DEFAULT now(),
+    hardware_concurrency Int32 DEFAULT 0,
+    platform_version String,
+    canvas_fingerprint String,
+    webgl_vendor String,
+    webgl_renderer String,
+    web_driver UInt8,
+    max_touch_points Int32
+)
+ENGINE = MergeTree
+ORDER BY (id, tracking_id, session_id);
+```
+
+### `live_security_headers_mv` — Materialized View
+
+```
+CREATE MATERIALIZED VIEW default.live_security_headers_mv
+(
+    id Int32,
+    tracking_id Int64,
+    session_id String,
+    security_cors_origin String,
+    security_allow_origin String,
+    security_allow_methods String,
+    security_allow_headers String,
+    security_allow_credentials UInt8,
+    security_expose_headers String,
+    security_max_age Int32,
+    security_frame_ancestors String,
+    security_csp String,
+    security_referrer_policy String,
+    security_permissions_policy String,
+    security_cross_origin String,
+    security_is_framed UInt8,
+    security_sandbox String,
+    dom_changes_count Int32,
+    dom_monitoring_active UInt8,
+    dom_last_change DateTime,
+    dom_added_elements String,
+    dom_removed_elements String,
+    dom_modified_attributes String,
+    dom_sensitive_changes String,
+    dom_security_violations String,
+    timestamp DateTime,
+    hardware_concurrency Int32,
+    platform_version String,
+    canvas_fingerprint String,
+    webgl_vendor String,
+    webgl_renderer String,
+    web_driver UInt8,
+    max_touch_points Int32
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (id, tracking_id, session_id)
+TTL timestamp + INTERVAL 5 MINUTE
+AS
+SELECT
+    s.id,
+    s.tracking_id,
+    s.session_id,
+    s.security_cors_origin,
+    s.security_allow_origin,
+    s.security_allow_methods,
+    s.security_allow_headers,
+    s.security_allow_credentials,
+    s.security_expose_headers,
+    s.security_max_age,
+    s.security_frame_ancestors,
+    s.security_csp,
+    s.security_referrer_policy,
+    s.security_permissions_policy,
+    s.security_cross_origin,
+    s.security_is_framed,
+    s.security_sandbox,
+    s.dom_changes_count,
+    s.dom_monitoring_active,
+    toDateTime(s.dom_last_change) AS dom_last_change,
+    s.dom_added_elements,
+    s.dom_removed_elements,
+    s.dom_modified_attributes,
+    s.dom_sensitive_changes,
+    s.dom_security_violations,
+    s.timestamp,
+    s.hardware_concurrency,
+    s.platform_version,
+    s.canvas_fingerprint,
+    s.webgl_vendor,
+    s.webgl_renderer,
+    s.web_driver,
+    s.max_touch_points
+FROM default.security_headers AS s;
+```
+
+### `security_events`
+
+```
+CREATE TABLE default.security_events
+(
+    timestamp DateTime64(3) DEFAULT now64(3),
+    session_id String,
+    hostname LowCardinality(String),
+    page_url String,
+    ip_address String,
+    event_type LowCardinality(String),
+    element_type LowCardinality(String),
+    origin String,
+    is_third_party UInt8,
+    is_initial UInt8,
+    attr_name LowCardinality(String),
+    method LowCardinality(String),
+    page_ms UInt32,
+    detail String
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMMDD(timestamp)
+ORDER BY (hostname, session_id, timestamp)
+TTL toDateTime(timestamp) + INTERVAL 30 DAY;
+```
+
+### `session_behavior`
+
+```
+CREATE TABLE default.session_behavior
+(
+    timestamp DateTime64(3) DEFAULT now64(3),
+    session_id String,
+    hostname LowCardinality(String),
+    ip_address String,
+    page_url String,
+    event_type LowCardinality(String),
+    web_driver UInt8,
+    headless_ua UInt8,
+    chrome_no_obj UInt8,
+    desktop_chrome_no_plugins UInt8,
+    no_languages UInt8,
+    zero_outer UInt8,
+    pointer_events UInt32,
+    key_events UInt32,
+    scroll_events UInt32,
+    touch_events UInt32,
+    click_events UInt32,
+    first_interaction_ms Int32,
+    time_on_page_ms UInt32
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMMDD(timestamp)
+ORDER BY (hostname, session_id, timestamp)
+TTL toDateTime(timestamp) + INTERVAL 30 DAY;
+```
+
+### `shield_events`
+
+```
+CREATE TABLE default.shield_events
+(
+    timestamp DateTime64(3) DEFAULT now64(3),
+    org_id LowCardinality(String),
+    user_id String,
+    ip_address String,
+    page String,
+    referrer String,
+    device_fp String,
+    frame_is_top UInt8,
+    event_type LowCardinality(String),
+    origin String,
+    is_third_party UInt8,
+    is_initial UInt8,
+    novel UInt8,
+    element_type LowCardinality(String),
+    attr_name LowCardinality(String),
+    method LowCardinality(String),
+    severity LowCardinality(String),
+    detail String
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMMDD(timestamp)
+ORDER BY (org_id, user_id, timestamp)
+TTL toDateTime(timestamp) + INTERVAL 30 DAY;
+```
+
+## 4. Actions, rules, and configuration tables
+
+### `action_logs`
+
+```
+CREATE TABLE default.action_logs
+(
+    action String,
+    timestamp DateTime,
+    sessions String,
+    nudge_id UInt32 DEFAULT 0,
+    nudge_content String DEFAULT '',
+    after_nudge_urls String DEFAULT ''
+)
+ENGINE = ReplacingMergeTree
+ORDER BY timestamp;
+```
+
+### `nudge_master`
+
+```
+CREATE TABLE default.nudge_master
+(
+    client_id UInt32,
+    client_name String,
+    nudge_id UInt32,
+    nudge_content String
+)
+ENGINE = MergeTree
+ORDER BY (client_id, nudge_id);
+```
+
+### `rules`
+
+```
+CREATE TABLE default.rules
+(
+    id UInt32,
+    rule String,
+    hostname String,
+    name String,
+    creation_time DateTime,
+    last_edit_time DateTime,
+    version UInt32,
+    action_time UInt32,
+    action String,
+    nudge_id UInt32
+)
+ENGINE = MergeTree
+PRIMARY KEY (id, version)
+ORDER BY (id, version);
+```
+
+### `script_allowlist`
+
+```
+CREATE TABLE default.script_allowlist
+(
+    hostname String,
+    origin String,
+    note String DEFAULT '',
+    added_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(added_at)
+ORDER BY (hostname, origin);
+```
+
+### `region_details`
+
+```
+CREATE TABLE default.region_details
+(
+    id Int32,
+    ip_address String,
+    country String,
+    region String,
+    city String
+)
+ENGINE = MergeTree
+ORDER BY id;
+```
+
+### `used_hostnames`
+
+```
+CREATE TABLE default.used_hostnames
+(
+    hostname String,
+    username String,
+    email String,
+    claimed_at DateTime DEFAULT now()
+)
+ENGINE = MergeTree
+ORDER BY hostname;
+```
+
+## 5. User and authentication tables
+
+### `users`
+
+```
+CREATE TABLE default.users
+(
+    username String,
+    passwordHash String,
+    hostname String,
+    version UInt32,
+    email String,
+    created_at DateTime DEFAULT now(),
+    trial_ends_at DateTime DEFAULT now() + INTERVAL 2 MINUTE,
+    plan LowCardinality(String) DEFAULT 'trial',
+    paid_until DateTime DEFAULT toDateTime(0)
+)
+ENGINE = ReplacingMergeTree(version)
+ORDER BY (username, hostname);
+```
+
+### `users_new`
+
+```
+CREATE TABLE default.users_new
+(
+    username String,
+    passwordHash String,
+    hostname String,
+    version UInt32
+)
+ENGINE = ReplacingMergeTree(version)
+ORDER BY (username, hostname);
+```
+
+### `users_archive`
+
+```
+CREATE TABLE default.users_archive
+(
+    username String,
+    passwordHash String,
+    hostname String,
+    version UInt32,
+    email String,
+    created_at DateTime
+)
+ENGINE = ReplacingMergeTree(version)
+ORDER BY (username, hostname);
+```
+
+### `users_archive_mv` — Materialized View
+
+```
+CREATE MATERIALIZED VIEW default.users_archive_mv
+TO default.users_archive
+(
+    username String,
+    passwordHash String,
+    hostname String,
+    version UInt32,
+    email String,
+    created_at DateTime
+)
+AS
+SELECT *
+FROM default.users;
+```
+
+## 6. Payments and risk scoring tables
+
+### `payments_log`
+
+```
+CREATE TABLE default.payments_log
+(
+    payment_id String,
+    username String,
+    hostname String,
+    email String,
+    amount Decimal(10, 2) DEFAULT 0,
+    method LowCardinality(String) DEFAULT 'demo_qr_otp',
+    months UInt8 DEFAULT 1,
+    activated_at DateTime DEFAULT now()
+)
+ENGINE = MergeTree
+ORDER BY (username, activated_at);
+```
+
+### `updated_hist_session_risk_scores`
+
+```
+CREATE TABLE default.updated_hist_session_risk_scores
+(
+    session_id String,
+    total_risk_score Float64,
+    browser_risk Float64,
+    login_risk Float64,
+    ip_risk Float64,
+    freq_risk Float64,
+    bot_risk Float64,
+    geo_risk Float64,
+    xss_risk Float64,
+    redirect_risk Float64,
+    ssrf_risk Float64,
+    sqli_risk Float64,
+    request_count UInt32,
+    distinct_ip_count UInt32,
+    login_attempts UInt32,
+    session_duration UInt32,
+    url_change_count UInt32,
+    action_recommendations String,
+    host String,
+    timestamp DateTime
+)
+ENGINE = MergeTree
+ORDER BY (session_id, timestamp);
+```
+
+## Important notes
+
+- Excluded tables: All three `.inner_id.*` tables from your original output.
+- Included: All 31 remaining tables and materialized views.
+- Preserved: Column definitions, default expressions, engines, partition keys, sorting keys, view queries, and TTL policies.
+- Cleaned: Removed repetitive `SETTINGS index_granularity = 8192` clauses for readability. ClickHouse normally uses this default setting.
+- TTL caution: Your original `tracking10` table has a 7-day TTL with an exception for hostnames matching `%myraymond%`. The cleaned DDL preserves that condition.
+- View caution: Materialized views that use `TO` or `AS SELECT` depend on their source and destination tables. Create the underlying tables in the correct order if rebuilding the database.
+
+These are cleaned versions of the DDL extracted from your uploaded output, not a live re-query of your ClickHouse server. Before using them to recreate production tables, verify the definitions against `SHOW CREATE TABLE` on your server.

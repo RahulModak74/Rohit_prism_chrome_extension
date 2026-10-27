@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Browser Shield — User Journey</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f7fa; }
+    h4 { margin: 0 0 16px; }
+    .wrap { display: flex; gap: 20px; }
+    .col-users { width: 320px; flex-shrink: 0; }
+    .col-journey { flex-grow: 1; }
+    .card { background: #fff; border: 1px solid #e6e9ef; border-radius: 8px; }
+    .card h6 { margin: 0; padding: 12px 14px; border-bottom: 1px solid #eef1f5; font-weight: 600; }
+    .user-row { padding: 10px 14px; border-bottom: 1px solid #f0f2f6; cursor: pointer; }
+    .user-row:hover { background: #f3f8ff; }
+    .user-row.active { background: #e7f1ff; }
+    .user-row .uid { font-weight: 600; }
+    .user-row .meta { font-size: 12px; color: #6b7686; margin-top: 2px; }
+    .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .pill.high { background: #fde8e8; color: #b4261e; }
+    .pill.ok { background: #e4f5ea; color: #1a7d44; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 12px; text-align: left; font-size: 13px; border-bottom: 1px solid #f0f2f6; vertical-align: top; }
+    th { background: #fafbfc; color: #6b7686; font-weight: 600; position: sticky; top: 0; }
+    .kind-visit { color: #0b63c4; font-weight: 600; }
+    .kind-alert { color: #b4261e; font-weight: 600; }
+    .page-cell { max-width: 420px; overflow-wrap: anywhere; }
+    .muted { color: #9aa3af; }
+    .empty { padding: 30px; text-align: center; color: #9aa3af; }
+    .scroll { max-height: calc(100vh - 160px); overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <h4><i class="fas fa-route"></i> Browser Shield — User Journey <small class="muted" id="orgLabel"></small></h4>
+  <div class="wrap">
+    <div class="col-users">
+      <div class="card">
+        <h6>Employees</h6>
+        <div class="scroll" id="userList"><div class="empty">Loading…</div></div>
+      </div>
+    </div>
+    <div class="col-journey">
+      <div class="card">
+        <h6 id="journeyTitle">Select an employee</h6>
+        <div class="scroll" id="journey"><div class="empty">Pick an employee on the left to see their journey.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    function fmt(ts){ return (ts||'').replace('T',' ').slice(0,19); }
+
+    async function loadUsers() {
+      try {
+        const r = await fetch('/api/shield/users', { credentials: 'same-origin' });
+        const d = await r.json();
+        if (!d.success) { document.getElementById('userList').innerHTML = '<div class="empty">'+esc(d.message||'Error')+'</div>'; return; }
+        document.getElementById('orgLabel').textContent = '· org: ' + d.org;
+        const el = document.getElementById('userList');
+        if (!d.users.length) { el.innerHTML = '<div class="empty">No extension data yet.</div>'; return; }
+        el.innerHTML = d.users.map(function(u){
+          var risk = u.high_events > 0 ? '<span class="pill high">'+u.high_events+' high</span>' : '<span class="pill ok">clean</span>';
+          return '<div class="user-row" data-uid="'+esc(u.user_id)+'" onclick="selectUser(this,\''+esc(u.user_id)+'\')">'
+            + '<div class="uid">'+esc(u.user_id)+' '+risk+'</div>'
+            + '<div class="meta">'+u.pages_seen+' pages · '+u.devices+' device(s) · last '+fmt(u.last_seen)+'</div>'
+            + '</div>';
+        }).join('');
+      } catch(e){ document.getElementById('userList').innerHTML = '<div class="empty">Failed to load.</div>'; }
+    }
+
+    async function selectUser(row, uid) {
+      document.querySelectorAll('.user-row').forEach(function(r){ r.classList.remove('active'); });
+      row.classList.add('active');
+      document.getElementById('journeyTitle').textContent = 'Journey — ' + uid;
+      const j = document.getElementById('journey');
+      j.innerHTML = '<div class="empty">Loading…</div>';
+      try {
+        const r = await fetch('/api/shield/journey?user_id=' + encodeURIComponent(uid), { credentials: 'same-origin' });
+        const d = await r.json();
+        if (!d.success || !d.journey.length) { j.innerHTML = '<div class="empty">No journey for this user.</div>'; return; }
+        var rows = d.journey.map(function(e){
+          var kind = e.kind === 'visit'
+            ? '<span class="kind-visit"><i class="fas fa-globe"></i> visit</span>'
+            : '<span class="kind-alert"><i class="fas fa-exclamation-triangle"></i> '+esc(e.event_type)+'</span>';
+          var detail = e.kind === 'visit'
+            ? (e.referrer ? '<span class="muted">from '+esc(e.referrer)+'</span>' : '')
+            : esc(e.origin) + (e.is_third_party ? ' <span class="pill high">3rd-party</span>' : '') + (e.novel ? ' <span class="pill high">new</span>' : '');
+          return '<tr><td class="muted">'+fmt(e.timestamp)+'</td><td>'+kind+'</td><td class="page-cell">'+esc(e.page)+'</td><td>'+detail+'</td></tr>';
+        }).join('');
+        j.innerHTML = '<table><thead><tr><th>Time</th><th>Event</th><th>Page</th><th>Detail</th></tr></thead><tbody>'+rows+'</tbody></table>';
+      } catch(e){ j.innerHTML = '<div class="empty">Failed to load journey.</div>'; }
+    }
+
+    loadUsers();
+  </script>
+</body>
+</html>

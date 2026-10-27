@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Shield — Visits</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="/js/client-security.js"></script>
+</head>
+
+<body>
+    <header>
+        <h1>Browser Shield — Employee Visits</h1>
+    </header>
+
+    <div style="padding: 10px; display: flex; gap: 10px;">
+        <a href="/dashboard.html" style="text-decoration: none; color: white; background-color: #007bff; padding: 8px 15px; border-radius: 5px; font-size: 16px;">Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+        <form id="visitorsForm" class="form-container" data-secure="true">
+            <div class="input-field">
+                <label for="custom_url">Filter by URL contains:</label>
+                <input type="text" id="custom_url" name="custom_url" placeholder="e.g. github.com">
+            </div>
+            <div class="input-field">
+                <label for="start_date">Start Date</label>
+                <input type="date" id="start_date" name="start_date">
+            </div>
+            <div class="input-field">
+                <label for="end_date">End Date</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+            <button type="submit">Search</button>
+            <button type="button" id="resetBtn" style="background-color: #6c757d; margin-left: 5px;">Reset</button>
+            <button type="button" id="refreshBtn" style="background-color: #28a745; margin-left: 5px;">Refresh</button>
+        </form>
+
+        <div class="report" id="reportContent">
+            <div id="loadingIndicator" style="text-align: center; padding: 20px;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                <p>Loading data...</p>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table id="visitorsTable" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Page visited</th>
+                            <th>Device FP</th>
+                            <th>Risk</th>
+                            <th>Legit (Jev)</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Country</th>
+                            <th>City</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+
+            <div id="noDataMessage" style="display: none; text-align: center; padding: 20px;">
+                <i class="fas fa-info-circle" style="font-size: 24px; color: #007bff;"></i>
+                <p>No extension visits found for the selected criteria.</p>
+            </div>
+
+            <div id="errorMessage" style="display: none; text-align: center; padding: 20px; color: #dc3545;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 24px;"></i>
+                <p id="errorText">An error occurred while fetching data.</p>
+            </div>
+        </div>
+
+        <div class="pagination" id="pagination"></div>
+    </div>
+
+    <script>
+        window.onload = function () {
+            sessionStorage.setItem('lastVisitedPage', window.location.href);
+            const urlParams = new URLSearchParams(window.location.search);
+            const customUrl = urlParams.get('custom_url');
+            const startDate = urlParams.get('start_date');
+            const endDate = urlParams.get('end_date');
+            const page = urlParams.get('page') || 1;
+
+            if (customUrl) document.getElementById('custom_url').value = customUrl;
+            if (startDate) document.getElementById('start_date').value = startDate;
+            if (endDate) document.getElementById('end_date').value = endDate;
+
+            fetchVisitorData(customUrl || '', startDate || '', endDate || '', page);
+
+            document.getElementById('visitorsForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                const c = document.getElementById('custom_url').value.trim();
+                const s = document.getElementById('start_date').value;
+                const en = document.getElementById('end_date').value;
+                let newUrl = window.location.pathname;
+                const params = new URLSearchParams();
+                if (c) params.append('custom_url', c);
+                if (s) params.append('start_date', s);
+                if (en) params.append('end_date', en);
+                params.append('page', 1);
+                if (params.toString()) newUrl += '?' + params.toString();
+                window.history.pushState({}, '', newUrl);
+                fetchVisitorData(c, s, en, 1);
+            });
+
+            document.getElementById('resetBtn').addEventListener('click', function () {
+                document.getElementById('custom_url').value = '';
+                document.getElementById('start_date').value = '';
+                document.getElementById('end_date').value = '';
+                window.history.pushState({}, '', window.location.pathname);
+                fetchVisitorData('', '', '', 1);
+            });
+
+            document.getElementById('refreshBtn').addEventListener('click', function () {
+                const c = document.getElementById('custom_url').value.trim();
+                const s = document.getElementById('start_date').value;
+                const en = document.getElementById('end_date').value;
+                const p = new URLSearchParams(window.location.search).get('page') || 1;
+                fetchVisitorData(c, s, en, p);
+            });
+        };
+
+        function fetchVisitorData(customUrl, startDate, endDate, page) {
+            let apiUrl = `/api/shield-visitors?page=${page}`;
+            if (customUrl) apiUrl += `&custom_url=${encodeURIComponent(customUrl)}`;
+            if (startDate) apiUrl += `&start_date=${startDate}`;
+            if (endDate) apiUrl += `&end_date=${endDate}`;
+
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('visitorsTable').style.display = 'none';
+            document.getElementById('noDataMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+
+            fetch(apiUrl)
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(data => {
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    if (data.success) {
+                        document.getElementById('custom_url').value = data.custom_url;
+                        document.getElementById('start_date').value = data.start_date;
+                        document.getElementById('end_date').value = data.end_date;
+                        if (data.visitors && data.visitors.length > 0) {
+                            renderTable(data.visitors);
+                            document.getElementById('visitorsTable').style.display = 'table';
+                            renderPagination(data.currentPage, data.totalPages, data.custom_url, data.start_date, data.end_date);
+                        } else {
+                            document.getElementById('noDataMessage').style.display = 'block';
+                            document.getElementById('pagination').innerHTML = '';
+                        }
+                    } else {
+                        document.getElementById('errorText').textContent = data.message || 'Error';
+                        document.getElementById('errorMessage').style.display = 'block';
+                        document.getElementById('pagination').innerHTML = '';
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    document.getElementById('errorText').textContent = 'Error: ' + err.message;
+                    document.getElementById('errorMessage').style.display = 'block';
+                    document.getElementById('pagination').innerHTML = '';
+                });
+        }
+
+        function renderTable(visitors) {
+            const tb = document.getElementById('tableBody');
+            tb.innerHTML = '';
+            visitors.forEach(v => {
+                const risk = v.high_near > 0
+                    ? '<span style="background:#fde8e8;color:#b4261e;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;">' + v.high_near + ' high</span>'
+                    : '<span style="background:#e4f5ea;color:#1a7d44;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;">clean</span>';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><a href="/shield-journey?user_id=${encodeURIComponent(v.user_id)}">${escapeHTML(v.user_id)}</a></td>
+                    <td style="max-width:360px;overflow-wrap:anywhere;">${escapeHTML(v.page)}</td>
+                    <td><code>${escapeHTML(v.device_fp)}</code></td>
+                    <td>${risk}</td>
+                    <td class="jev-cell" data-uid="${encodeURIComponent(v.user_id)}"><span class="muted" style="color:#9aa3af;">checking…</span></td>
+                    <td>${escapeHTML(v.date)}</td>
+                    <td>${escapeHTML(v.time)}</td>
+                    <td>${escapeHTML(v.country)}</td>
+                    <td>${escapeHTML(v.city)}</td>
+                `;
+                tb.appendChild(tr);
+            });
+            checkJevForVisibleUsers();
+        }
+
+        // Ask Jev once per unique user, then fill every matching cell.
+        const _jevSeen = {};
+        function checkJevForVisibleUsers() {
+            const cells = document.querySelectorAll('.jev-cell');
+            const users = {};
+            cells.forEach(function (c) { users[c.getAttribute('data-uid')] = true; });
+            Object.keys(users).forEach(function (encUid) {
+                if (_jevSeen[encUid]) { fillJevCells(encUid, _jevSeen[encUid]); return; }
+                fetch('/api/jev/check?user_id=' + encUid, { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        var badge = jevBadge(d);
+                        _jevSeen[encUid] = badge;
+                        fillJevCells(encUid, badge);
+                    })
+                    .catch(function () { fillJevCells(encUid, '<span style="color:#9aa3af;">n/a</span>'); });
+            });
+        }
+
+        function jevBadge(d) {
+            if (!d || !d.success) return '<span style="color:#9aa3af;">n/a</span>';
+            var v = d.verdict, g = (d.genuine == null ? null : Math.round(d.genuine * 100));
+            var style = 'padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;';
+            if (v === 'human') return '<span style="background:#e4f5ea;color:#1a7d44;' + style + '">Legit' + (g != null ? ' ' + g + '%' : '') + '</span>';
+            if (v === 'bot')   return '<span style="background:#fde8e8;color:#b4261e;' + style + '">Bot' + (g != null ? ' ' + g + '%' : '') + '</span>';
+            return '<span style="background:#fff4e5;color:#9a6700;' + style + '">Unsure</span>';
+        }
+
+        function fillJevCells(encUid, html) {
+            document.querySelectorAll('.jev-cell[data-uid="' + encUid + '"]').forEach(function (c) { c.innerHTML = html; });
+        }
+
+        function renderPagination(currentPage, totalPages, customUrl, startDate, endDate) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+            if (totalPages <= 1) return;
+            const maxPagesToShow = 5;
+            currentPage = parseInt(currentPage);
+            const controls = document.createElement('div');
+            controls.className = 'pagination-controls';
+
+            function createPageLink(pageNum, label, isActive) {
+                const link = document.createElement('a');
+                let url = `/shield-report?page=${pageNum}`;
+                if (customUrl) url += `&custom_url=${encodeURIComponent(customUrl)}`;
+                if (startDate) url += `&start_date=${encodeURIComponent(startDate)}`;
+                if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`;
+                link.href = url;
+                link.textContent = label || pageNum;
+                if (isActive) link.className = 'active';
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    window.history.pushState({}, '', this.href);
+                    const p = new URLSearchParams(new URL(this.href).search).get('page') || 1;
+                    fetchVisitorData(customUrl || '', startDate || '', endDate || '', p);
+                });
+                return link;
+            }
+
+            if (currentPage > 1) controls.appendChild(createPageLink(currentPage - 1, '«'));
+            controls.appendChild(createPageLink(1, null, currentPage === 1));
+            let startPage = Math.max(2, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages - 1, startPage + maxPagesToShow - 1);
+            if (endPage >= totalPages - 1) { startPage = Math.max(2, totalPages - maxPagesToShow); endPage = totalPages - 1; }
+            if (startPage > 2) { const e = document.createElement('span'); e.textContent = '...'; e.style.margin = '0 5px'; controls.appendChild(e); }
+            for (let i = startPage; i <= endPage; i++) controls.appendChild(createPageLink(i, null, i === currentPage));
+            if (endPage < totalPages - 1) { const e = document.createElement('span'); e.textContent = '...'; e.style.margin = '0 5px'; controls.appendChild(e); }
+            if (totalPages > 1) controls.appendChild(createPageLink(totalPages, null, currentPage === totalPages));
+            if (currentPage < totalPages) controls.appendChild(createPageLink(currentPage + 1, '»'));
+            pagination.appendChild(controls);
+        }
+
+        function escapeHTML(text) {
+            if (text === null || text === undefined) return '';
+            return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+
+</html>

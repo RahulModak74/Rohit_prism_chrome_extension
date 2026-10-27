@@ -1,0 +1,326 @@
+/* common.css - Shared styles for the Cybersecurity Platform */
+
+/* Base styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+/* Header styles */
+header {
+    background-color: #007bff;
+    color: white;
+    padding: 15px 0;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+/* Container */
+.container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 20px;
+    background: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+/* Form styles */
+.form-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+    align-items: flex-end;
+}
+
+.input-field {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 200px;
+}
+
+label {
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+input[type="text"],
+input[type="date"],
+input[type="password"] {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+input[type="text"]:focus,
+input[type="date"]:focus,
+input[type="password"]:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+/* Table styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: #007bff;
+    color: white;
+}
+
+tbody tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+tbody tr:hover {
+    background-color: #e9f3ff;
+}
+
+/* Links */
+a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.pagination a {
+    display: inline-block;
+    padding: 8px 12px;
+    margin: 0 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    color: #007bff;
+}
+
+.pagination a:hover {
+    background-color: #f2f2f2;
+    text-decoration: none;
+}
+
+.pagination a.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.pagination-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+}
+
+.page-jump {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.page-jump input {
+    width: 60px;
+    padding: 7px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    text-align: center;
+    margin: 0 5px;
+}
+
+.page-jump button {
+    padding: 7px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.page-jump button:hover {
+    background-color: #0056b3;
+}
+
+.score-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    color: white;
+    font-weight: 500;
+    font-size: 0.875rem;
+    display: inline-block;
+    min-width: 80px;
+    text-align: center;
+}
+
+.score-high {
+    background-color: #dc3545;
+}
+
+.score-medium {
+    background-color: #fd7e14;
+}
+
+.score-low {
+    background-color: #198754;
+}
+
+.rotate-icon {
+    transition: transform 0.3s ease;
+}
+
+.rotate-icon.active {
+    transform: rotate(180deg);
+}
+
+.clickable {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.clickable:hover {
+    background-color: #f1f3f5;
+}
+
+.details-container {
+    background: linear-gradient(to right, #f8f9fa, #ffffff);
+    border-radius: 8px;
+    margin: 10px;
+    padding: 10px;
+}
+
+.risk-factor {
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    border-radius: 8px;
+    background-color: white;
+    transition: all 0.2s;
+    border: 1px solid #e9ecef;
+}
+
+.risk-factor.active {
+    background-color: #fff4f4;
+    color: #dc3545;
+    border-color: #ffc9c9;
+}
+
+.metrics-card {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    height: 100%;
+    border: 1px solid #e9ecef;
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #495057;
+}
+
+.metric-label {
+    color: #6c757d;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .form-container {
+        flex-direction: column;
+    }
+    
+    .input-field {
+        width: 100%;
+    }
+    
+    table {
+        display: block;
+        overflow-x: auto;
+    }
+}
+
+.clicked-row {
+    background-color: rgb(250, 117, 117) !important;
+}
+
+#loadingIndicator {
+    text-align: center;
+    padding: 20px;
+}
+
+.fingerprint-cell {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.no-data {
+    text-align: center;
+    padding: 20px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+ /* Custom styles for handling long URLs */
+table td {
+    max-width: 300px; /* Limit cell width */
+    word-wrap: break-word; /* Break words to next line */
+    overflow-wrap: break-word; /* Modern browsers */
+    word-break: break-all; /* For very long words without spaces */
+}
+
+/* URL column should get more space */
+table td:nth-child(4) {
+    max-width: 500px; /* Make URL column wider */
+}
+
+/* Style for clicked rows */
+.clicked-row {
+    background-color: rgb(250, 117, 117) !important;
+}

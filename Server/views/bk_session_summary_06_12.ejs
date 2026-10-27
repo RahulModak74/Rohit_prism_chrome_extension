@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Summary</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 0;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        form {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid #ddd;
+        }
+
+        th,
+        td {
+            padding: 15px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #28a745;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .pagination {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .pagination a {
+            display: inline-block;
+            padding: 8px 16px;
+            text-decoration: none;
+            color: #007bff;
+            border: 1px solid #ddd;
+        }
+
+        .pagination a.active {
+            background-color: #007bff;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <header>Session Summary</header>
+    <div class="container">
+        <!-- Displaying session summary data in a table -->
+        <% if (data.length > 0) { %>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Session ID</th>
+                        <th>Browser ID</th>
+                        <th>Last Seen</th>
+                        <th>Session Start</th>
+                        <th>Hits</th>
+                        <th>Came From</th>
+                        <th>Current URL</th>
+                        <th>IP Address</th>
+                        <th>Session Duration (s)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% data.forEach(function(row) { %>
+                        <tr>
+                            <td><a href="/session_journey?session_id=<%= row.session_id %>"><%= row.session_id %></a></td>
+                            <td><%= row.browser_id %></td>
+                            <td><%= new Date(row.last_seen).toLocaleString() %></td>
+                            <td><%= new Date(row.session_start).toLocaleString() %></td>
+                            <td><%= row.hits %></td>
+                            <td><%= row.came_from || 'N/A' %></td>
+                            <td><%= row.current_url || 'N/A' %></td>
+                            <td><%= row.ip_address || 'N/A' %></td>
+                            <td><%= row.session_duration %></td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        <% } else { %>
+            <p>No session data available.</p>
+        <% } %>
+
+        <!-- Pagination -->
+        <div class="pagination">
+            <% for (let i = 1; i <= totalPages; i++) { %>
+                <a href="/session_summary?page=<%= i %>" class="<%= currentPage === i ? 'active' : '' %>">
+                    <%= i %>
+                </a>
+            <% } %>
+        </div>
+    </div>
+</body>
+
+</html>

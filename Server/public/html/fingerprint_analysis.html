@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fingerprint Analysis</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="/js/client-security.js"></script>
+</head>
+
+<body>
+    <header>
+        <h1>Fingerprint Analysis</h1>
+    </header>
+
+    <!-- Navigation buttons -->
+    <div style="padding: 10px; display: flex; gap: 10px;">
+        <a href="/dashboard.html" style="text-decoration: none; color: white; background-color: #007bff; padding: 8px 15px; border-radius: 5px; font-size: 16px;">Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+        <form id="fingerprintForm" class="form-container" data-secure="true">
+            <div class="input-field">
+                <label for="fingerprint_id">Fingerprint ID:</label>
+                <input type="text" id="fingerprint_id" name="fingerprint_id" placeholder="Enter fingerprint ID">
+            </div>
+
+            <div class="input-field">
+                <label for="start_date">Start Date:</label>
+                <input type="date" id="start_date" name="start_date">
+            </div>
+
+            <div class="input-field">
+                <label for="end_date">End Date:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+
+            <button type="submit">Search</button>
+        </form>
+
+        <div class="report" id="reportContent">
+            <!-- Loading indicator -->
+            <div id="loadingIndicator" style="text-align: center; padding: 20px;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                <p>Loading fingerprint data...</p>
+            </div>
+            
+            <table id="fingerprintTable" style="display: none;">
+                <thead id="tableHead">
+                    <!-- Table header will be dynamically populated -->
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Table rows will be populated by JavaScript -->
+                </tbody>
+            </table>
+            
+            <!-- No data message -->
+            <div id="noDataMessage" style="display: none; text-align: center; padding: 20px;">
+                <i class="fas fa-info-circle" style="font-size: 24px; color: #007bff;"></i>
+                <p>No fingerprint data found for the selected criteria.</p>
+            </div>
+
+            <!-- Error message -->
+            <div id="errorMessage" style="display: none; text-align: center; padding: 20px; color: #dc3545;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 24px;"></i>
+                <p id="errorText">An error occurred while fetching data.</p>
+            </div>
+        </div>
+
+        <div class="pagination" id="pagination">
+            <!-- Pagination will be added here -->
+        </div>
+    </div>
+
+    <script>
+        // Initialize page when DOM is loaded
+        window.onload = function() {
+            // Store current URL for refresh handling
+            sessionStorage.setItem('lastVisitedPage', window.location.href);
+
+            // Get parameters from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const fingerprintId = urlParams.get('fingerprint_id') || '';
+            const startDate = urlParams.get('start_date');
+            const endDate = urlParams.get('end_date');
+            const page = urlParams.get('page') || 1;
+            
+            // Set form values from URL parameters if provided
+            if (fingerprintId) document.getElementById('fingerprint_id').value = fingerprintId;
+            if (startDate) document.getElementById('start_date').value = startDate;
+            if (endDate) document.getElementById('end_date').value = endDate;
+            
+            // Fetch data from API - backend will use its defaults if parameters not provided
+            fetchFingerprintData(
+                fingerprintId,
+                startDate || '',
+                endDate || '',
+                page
+            );
+            
+            // Set up form submission handler
+            document.getElementById('fingerprintForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const fingerprintId = document.getElementById('fingerprint_id').value.trim();
+                const startDate = document.getElementById('start_date').value;
+                const endDate = document.getElementById('end_date').value;
+                
+                // Update URL with the parameters for bookmarking/sharing
+                let newUrl = window.location.pathname;
+                const params = new URLSearchParams();
+                if (fingerprintId) params.append('fingerprint_id', fingerprintId);
+                if (startDate) params.append('start_date', startDate);
+                if (endDate) params.append('end_date', endDate);
+                params.append('page', 1); // Reset to page 1 when form is submitted
+                
+                if (params.toString()) {
+                    newUrl += '?' + params.toString();
+                }
+                
+                window.history.pushState({}, '', newUrl);
+                
+                fetchFingerprintData(fingerprintId, startDate, endDate, 1);
+            });
+        };
+
+        function fetchFingerprintData(fingerprintId, startDate, endDate, page) {
+            // Construct the API URL
+            let apiUrl = `/api/fingerprint-analysis?page=${page}`;
+            
+            // Only add parameters if they exist
+            if (fingerprintId) apiUrl += `&fingerprint_id=${encodeURIComponent(fingerprintId)}`;
+            if (startDate) apiUrl += `&start_date=${startDate}`;
+            if (endDate) apiUrl += `&end_date=${endDate}`;
+            
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('fingerprintTable').style.display = 'none';
+            document.getElementById('noDataMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide loading indicator
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    
+                    if (data.success) {
+                        // Update form fields with values from backend
+                        document.getElementById('fingerprint_id').value = data.fingerprint_id;
+                        document.getElementById('start_date').value = data.start_date;
+                        document.getElementById('end_date').value = data.end_date;
+                        
+                        if (data.fingerprintData && data.fingerprintData.length > 0) {
+                            // Render table with fingerprint data
+                            renderTable(data.fingerprintData, data.fingerprint_id);
+                            document.getElementById('fingerprintTable').style.display = 'table';
+                            
+                            // Render pagination
+                            renderPagination(
+                                data.currentPage, 
+                                data.totalPages, 
+                                data.fingerprint_id, 
+                                data.start_date, 
+                                data.end_date
+                            );
+                        } else {
+                            // Show no data message
+                            document.getElementById('noDataMessage').style.display = 'block';
+                            document.getElementById('pagination').innerHTML = '';
+                        }
+                    } else {
+                        // Show error message
+                        document.getElementById('errorText').textContent = data.message || 'An error occurred while fetching data.';
+                        document.getElementById('errorMessage').style.display = 'block';
+                        document.getElementById('pagination').innerHTML = '';
+                    }
+                })
+                .catch(error => {
+                    // Hide loading indicator and show error message
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    document.getElementById('errorText').textContent = `Error: ${error.message}`;
+                    document.getElementById('errorMessage').style.display = 'block';
+                    document.getElementById('pagination').innerHTML = '';
+                    console.error('Error fetching fingerprint data:', error);
+                });
+        }
+
+        function renderTable(fingerprintData, fingerprintId) {
+            const tableHead = document.getElementById('tableHead');
+            const tableBody = document.getElementById('tableBody');
+            
+            // Clear existing content
+            tableHead.innerHTML = '';
+            tableBody.innerHTML = '';
+            
+            // Create table header based on whether a fingerprint ID is provided
+            const headerRow = document.createElement('tr');
+            
+            if (!fingerprintId) {
+                headerRow.innerHTML = `
+                    <th>Fingerprint ID</th>
+                    <th>Number of Sessions</th>
+                    <th>Number of Domains</th>
+                    <th>First Seen</th>
+                    <th>Last Seen</th>
+                `;
+            } else {
+                headerRow.innerHTML = `
+                    <th>Fingerprint ID</th>
+                    <th>Session ID</th>
+                    <th>Domain</th>
+                    <th>First Seen</th>
+                    <th>Last Seen</th>
+                `;
+            }
+            
+            tableHead.appendChild(headerRow);
+            
+            // Populate table body with data
+            fingerprintData.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                if (!fingerprintId) {
+                    tr.innerHTML = `
+                        <td class="fingerprint-cell">
+                            <a href="/fingerprint-analysis?fingerprint_id=${encodeURIComponent(row.fingerprint_id)}">
+                                ${escapeHTML(row.fingerprint_id)}
+                            </a>
+                        </td>
+                        <td>${escapeHTML(row.session_count.toString())}</td>
+                        <td>${escapeHTML(row.domain_count.toString())}</td>
+                        <td>${escapeHTML(row.first_seen)}</td>
+                        <td>${escapeHTML(row.last_seen)}</td>
+                    `;
+                } else {
+                    tr.innerHTML = `
+                        <td class="fingerprint-cell">${escapeHTML(row.fingerprint_id)}</td>
+                        <td>${escapeHTML(row.session_id)}</td>
+                        <td>${escapeHTML(row.hostname)}</td>
+                        <td>${escapeHTML(row.first_seen)}</td>
+                        <td>${escapeHTML(row.last_seen)}</td>
+                    `;
+                }
+                
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function renderPagination(currentPage, totalPages, fingerprintId, startDate, endDate) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+            
+            if (totalPages <= 1) return;
+            
+            // Smart pagination - show limited number of pages with ellipsis
+            const maxPagesToShow = 5; // Adjust as needed
+            currentPage = parseInt(currentPage);
+            
+            // Create container for pagination controls
+            const paginationControls = document.createElement('div');
+            paginationControls.className = 'pagination-controls';
+            
+            // Function to create a page link
+            function createPageLink(pageNum, label, isActive = false) {
+                const link = document.createElement('a');
+                
+                let url = `/fingerprint-analysis?page=${pageNum}`;
+                if (fingerprintId) url += `&fingerprint_id=${encodeURIComponent(fingerprintId)}`;
+                if (startDate) url += `&start_date=${encodeURIComponent(startDate)}`;
+                if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`;
+                
+                link.href = url;
+                link.textContent = label || pageNum;
+                
+                if (isActive) {
+                    link.className = 'active';
+                }
+                
+                // Add click handler to use AJAX instead of page reload
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // Update URL without reloading
+                    window.history.pushState({}, '', this.href);
+                    
+                    // Get the page number from the URL
+                    const urlParams = new URLSearchParams(new URL(this.href).search);
+                    const pageNum = urlParams.get('page') || 1;
+                    
+                    // Fetch data for the new page
+                    fetchFingerprintData(
+                        fingerprintId || '',
+                        startDate || '',
+                        endDate || '',
+                        pageNum
+                    );
+                });
+                
+                return link;
+            }
+            
+            // Previous button
+            if (currentPage > 1) {
+                paginationControls.appendChild(createPageLink(currentPage - 1, '«'));
+            }
+            
+            // First page
+            paginationControls.appendChild(createPageLink(1, null, currentPage === 1));
+            
+            // Calculate page range to show
+            let startPage = Math.max(2, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages - 1, startPage + maxPagesToShow - 1);
+            
+            // Adjust if we're near the end
+            if (endPage >= totalPages - 1) {
+                startPage = Math.max(2, totalPages - maxPagesToShow);
+                endPage = totalPages - 1;
+            }
+            
+            // Show ellipsis if needed before middle pages
+            if (startPage > 2) {
+                const ellipsis = document.createElement('span');
+                ellipsis.textContent = '...';
+                ellipsis.style.margin = '0 5px';
+                paginationControls.appendChild(ellipsis);
+            }
+            
+            // Middle pages
+            for (let i = startPage; i <= endPage; i++) {
+                paginationControls.appendChild(createPageLink(i, null, i === currentPage));
+            }
+            
+            // Show ellipsis if needed after middle pages
+            if (endPage < totalPages - 1) {
+                const ellipsis = document.createElement('span');
+                ellipsis.textContent = '...';
+                ellipsis.style.margin = '0 5px';
+                paginationControls.appendChild(ellipsis);
+            }
+            
+            // Last page (if not already included)
+            if (totalPages > 1) {
+                paginationControls.appendChild(createPageLink(totalPages, null, currentPage === totalPages));
+            }
+            
+            // Next button
+            if (currentPage < totalPages) {
+                paginationControls.appendChild(createPageLink(currentPage + 1, '»'));
+            }
+            
+            // Add direct page navigation
+            const pageJump = document.createElement('div');
+            pageJump.className = 'page-jump';
+            
+            const pageLabel = document.createElement('span');
+            pageLabel.textContent = 'Go to page:';
+            
+            const pageInput = document.createElement('input');
+            pageInput.type = 'number';
+            pageInput.min = '1';
+            pageInput.max = totalPages.toString();
+            pageInput.value = currentPage;
+            
+            const goButton = document.createElement('button');
+            goButton.textContent = 'Go';
+            
+            goButton.addEventListener('click', function() {
+                const pageNum = parseInt(pageInput.value);
+                if (pageNum >= 1 && pageNum <= totalPages) {
+                    let url = `/fingerprint-analysis?page=${pageNum}`;
+                    if (fingerprintId) url += `&fingerprint_id=${encodeURIComponent(fingerprintId)}`;
+                    if (startDate) url += `&start_date=${encodeURIComponent(startDate)}`;
+                    if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`;
+                    
+                    // Update URL without reloading
+                    window.history.pushState({}, '', url);
+                    
+                    // Fetch data for the new page
+                    fetchFingerprintData(
+                        fingerprintId || '',
+                        startDate || '',
+                        endDate || '',
+                        pageNum
+                    );
+                }
+            });
+            
+            // Add keypress event for Enter key
+            pageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    goButton.click();
+                }
+            });
+            
+            pageJump.appendChild(pageLabel);
+            pageJump.appendChild(pageInput);
+            pageJump.appendChild(goButton);
+            
+            // Add both containers to pagination
+            pagination.appendChild(paginationControls);
+            pagination.appendChild(pageJump);
+        }
+
+        // HTML escaping function for security
+        function escapeHTML(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>

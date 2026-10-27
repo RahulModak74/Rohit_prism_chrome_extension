@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Analysis Dashboard</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="/js/client-security.js"></script>
+</head>
+
+<body>
+    <header>
+        <h1>Risk Analysis Dashboard</h1>
+    </header>
+    
+    <!-- Navigation buttons -->
+    <div style="padding: 10px; display: flex; gap: 10px;">
+        <a href="/dashboard.html" style="text-decoration: none; color: white; background-color: #007bff; padding: 8px 15px; border-radius: 5px; font-size: 16px;">Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+        <!-- Date Filter Form -->
+        <form id="dateFilterForm" class="form-container" data-secure="true">
+            <div class="input-field">
+                <label for="start_date">Start Date:</label>
+                <input type="date" id="start_date" name="start_date">
+            </div>
+
+            <div class="input-field">
+                <label for="end_date">End Date:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+
+            <button type="submit">Apply Filter</button>
+            <button type="button" id="resetBtn" style="background-color: #6c757d; margin-left: 5px;">Reset</button>
+            <button type="button" id="refreshBtn" style="background-color: #28a745; margin-left: 5px;">Refresh</button>
+        </form>
+
+        <div class="report" id="reportContent">
+            <!-- Loading indicator -->
+            <div id="loadingIndicator" style="text-align: center; padding: 20px;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                <p>Loading risk analysis data...</p>
+            </div>
+            
+            <!-- Hostname display -->
+            <div id="hostnameInfo" style="margin: 15px 0; font-weight: bold; display: none;"></div>
+            
+            <!-- Date range info -->
+            <div id="dateRangeInfo" style="margin: 15px 0; font-style: italic; display: none;"></div>
+            
+            <table id="riskTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Session ID</th>
+                        <th>Risk Score</th>
+                        <th>Actions</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="riskTableBody">
+                    <!-- Table rows will be populated by JavaScript -->
+                </tbody>
+            </table>
+            
+            <!-- No data message -->
+            <div id="noDataMessage" style="display: none; text-align: center; padding: 20px;">
+                <i class="fas fa-info-circle" style="font-size: 24px; color: #007bff;"></i>
+                <p>No risk data found for the selected criteria.</p>
+            </div>
+
+            <!-- Error message -->
+            <div id="errorMessage" style="display: none; text-align: center; padding: 20px; color: #dc3545;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 24px;"></i>
+                <p id="errorText">An error occurred while fetching data.</p>
+            </div>
+        </div>
+
+        <div class="pagination" id="pagination">
+            <!-- Pagination will be added here -->
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize page when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Store current URL for refresh handling
+            sessionStorage.setItem('lastVisitedPage', window.location.href);
+
+            // Get parameters from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const page = urlParams.get('page') || 1;
+            const startDate = urlParams.get('start_date');
+            const endDate = urlParams.get('end_date');
+            
+            // Set form values from URL parameters if provided
+            if (startDate) document.getElementById('start_date').value = startDate;
+            if (endDate) document.getElementById('end_date').value = endDate;
+            
+            // Fetch data from API - backend will use its defaults if parameters not provided
+            fetchRiskAnalysisData(
+                startDate || '',
+                endDate || '',
+                page
+            );
+            
+            // Set up form submission handler
+            document.getElementById('dateFilterForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const startDate = document.getElementById('start_date').value;
+                const endDate = document.getElementById('end_date').value;
+                
+                // Update URL with the parameters for bookmarking/sharing
+                let newUrl = window.location.pathname;
+                const params = new URLSearchParams();
+                if (startDate) params.append('start_date', startDate);
+                if (endDate) params.append('end_date', endDate);
+                params.append('page', 1); // Reset to page 1 when form is submitted
+                
+                if (params.toString()) {
+                    newUrl += '?' + params.toString();
+                }
+                
+                window.history.pushState({}, '', newUrl);
+                
+                fetchRiskAnalysisData(startDate, endDate, 1);
+            });
+            
+            // Reset button handler
+            document.getElementById('resetBtn').addEventListener('click', function() {
+                document.getElementById('start_date').value = '';
+                document.getElementById('end_date').value = '';
+                
+                // Reset URL
+                window.history.pushState({}, '', window.location.pathname);
+                
+                // Fetch data with default parameters
+                fetchRiskAnalysisData('', '', 1);
+            });
+            
+            // Refresh button handler
+            document.getElementById('refreshBtn').addEventListener('click', function() {
+                const startDate = document.getElementById('start_date').value;
+                const endDate = document.getElementById('end_date').value;
+                const urlParams = new URLSearchParams(window.location.search);
+                const page = urlParams.get('page') || 1;
+                
+                fetchRiskAnalysisData(startDate, endDate, page);
+            });
+        });
+
+        function fetchRiskAnalysisData(startDate, endDate, page) {
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('riskTable').style.display = 'none';
+            document.getElementById('noDataMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('hostnameInfo').style.display = 'none';
+            document.getElementById('dateRangeInfo').style.display = 'none';
+
+            // Construct API URL
+            let apiUrl = `/api/updated-session-risk-analysis?page=${page}`;
+            
+            // Only add parameters if they exist
+            if (startDate) apiUrl += `&start_date=${startDate}`;
+            if (endDate) apiUrl += `&end_date=${endDate}`;
+            
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide loading indicator
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    
+                    if (data.success) {
+                        // Show hostname info
+                        const hostnameInfo = document.getElementById('hostnameInfo');
+                        hostnameInfo.textContent = `Hostname: ${data.hostname}`;
+                        hostnameInfo.style.display = 'block';
+                        
+                        // Show date range info if provided
+                        if (data.start_date && data.end_date) {
+                            const dateRangeInfo = document.getElementById('dateRangeInfo');
+                            dateRangeInfo.textContent = `Showing data from ${data.start_date} to ${data.end_date}`;
+                            dateRangeInfo.style.display = 'block';
+                        }
+                        
+                        // Update form fields with values from backend
+                        document.getElementById('start_date').value = data.start_date;
+                        document.getElementById('end_date').value = data.end_date;
+                        
+                        if (data.riskData && data.riskData.length > 0) {
+                            // Render risk data table
+                            renderRiskTable(data.riskData);
+                            document.getElementById('riskTable').style.display = 'table';
+                            
+                            // Render pagination
+                            renderPagination(
+                                data.currentPage, 
+                                data.totalPages, 
+                                data.start_date, 
+                                data.end_date
+                            );
+                        } else {
+                            // Show no data message
+                            document.getElementById('noDataMessage').style.display = 'block';
+                            document.getElementById('pagination').innerHTML = '';
+                        }
+                    } else {
+                        // Show error message
+                        document.getElementById('errorText').textContent = data.message || 'An error occurred while fetching data.';
+                        document.getElementById('errorMessage').style.display = 'block';
+                        document.getElementById('pagination').innerHTML = '';
+                    }
+                })
+                .catch(error => {
+                    // Hide loading indicator and show error message
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    document.getElementById('errorText').textContent = `Error: ${error.message}`;
+                    document.getElementById('errorMessage').style.display = 'block';
+                    document.getElementById('pagination').innerHTML = '';
+                    console.error('Error fetching risk analysis data:', error);
+                });
+        }
+
+        function renderRiskTable(riskData) {
+            const tableBody = document.getElementById('riskTableBody');
+            tableBody.innerHTML = '';
+            
+            riskData.forEach((session, index) => {
+                // Create main row (clickable row with session info)
+                const mainRow = document.createElement('tr');
+                mainRow.className = 'clickable';
+                mainRow.onclick = function() { toggleDetails(index); };
+                
+                // Add session ID cell with journey link
+                const sessionCell = document.createElement('td');
+                sessionCell.onclick = function(e) { e.stopPropagation(); };
+                
+                const journeyLink = document.createElement('a');
+                journeyLink.href = `/session_journey?session_id=${encodeURIComponent(session.session_id)}`;
+                journeyLink.textContent = session.session_id;
+                journeyLink.style.textDecoration = 'none';
+                
+                sessionCell.appendChild(journeyLink);
+                mainRow.appendChild(sessionCell);
+                
+                // Add risk score cell with badge
+                const scoreCell = document.createElement('td');
+                const scoreBadge = document.createElement('span');
+                scoreBadge.className = `score-badge ${session.total_risk_score >= 8 ? 'score-high' : (session.total_risk_score >= 5 ? 'score-medium' : 'score-low')}`;
+                scoreBadge.textContent = `${session.total_risk_score}/10`;
+                scoreCell.appendChild(scoreBadge);
+                mainRow.appendChild(scoreCell);
+                
+                // Add actions cell with journey button
+                const actionsCell = document.createElement('td');
+                const journeyButton = document.createElement('a');
+                journeyButton.href = `/session_journey?session_id=${encodeURIComponent(session.session_id)}`;
+                journeyButton.className = 'btn btn-sm btn-primary';
+                journeyButton.textContent = 'View Journey';
+                journeyButton.onclick = function(e) { e.stopPropagation(); };
+                actionsCell.appendChild(journeyButton);
+                mainRow.appendChild(actionsCell);
+                
+                // Add toggle icon cell
+                const toggleCell = document.createElement('td');
+                toggleCell.className = 'text-center';
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-chevron-down rotate-icon';
+                icon.id = `icon${index}`;
+                toggleCell.appendChild(icon);
+                mainRow.appendChild(toggleCell);
+                
+                // Create details row (collapsed by default)
+                const detailsRow = document.createElement('tr');
+                detailsRow.className = `details-row-${index}`;
+                detailsRow.style.display = 'none';
+                
+                // Create details content
+                const detailsCell = document.createElement('td');
+                detailsCell.colSpan = 4;
+                
+                // Create details container
+                const detailsContainer = document.createElement('div');
+                detailsContainer.className = 'details-container';
+                
+                // Create metrics section
+                const metricsSection = document.createElement('div');
+                metricsSection.innerHTML = `
+                    <h6 class="mb-3">Session Metrics</h6>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <div class="metrics-card text-center">
+                                <div class="metric-value">${session.url_change_count}</div>
+                                <div class="metric-label">Total Requests</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metrics-card text-center">
+                                <div class="metric-value">${session.distinct_ip_count}</div>
+                                <div class="metric-label">Distinct IPs</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metrics-card text-center">
+                                <div class="metric-value">${session.login_attempts}</div>
+                                <div class="metric-label">Login Attempts</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metrics-card text-center">
+                                <div class="metric-value">${session.session_duration}s</div>
+                                <div class="metric-label">Duration</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Create risk factors section
+                const riskFactorsSection = document.createElement('div');
+                riskFactorsSection.innerHTML = '<h6 class="mb-3">Risk Factors</h6>';
+                
+                const riskFactorsRow = document.createElement('div');
+                riskFactorsRow.className = 'row g-3';
+                
+                // Define risk factors
+                const riskFactors = [
+                    { name: 'Multiple Browser IDs', value: session.browser_risk },
+                    { name: 'Multiple Login Attempts', value: session.login_risk },
+                    { name: 'Multiple IP Addresses', value: session.ip_risk },
+                    { name: 'High Request Frequency', value: session.freq_risk },
+                    { name: 'Bot Detection', value: session.bot_risk },
+                    { name: 'Unusual Geolocation', value: session.geo_risk },
+                    { name: 'XSS Attack', value: session.xss_risk },
+                    { name: 'Redirect Attack', value: session.redirect_risk },
+                    { name: 'SSRF Attack', value: session.ssrf_risk },
+                    { name: 'SQL Injection', value: session.sqli_risk },
+                    { name: 'Web Cache Poisoning', value: 0 } // Always No
+                ];
+                
+                // Create risk factor elements
+                riskFactors.forEach(factor => {
+                    const riskFactorCol = document.createElement('div');
+                    riskFactorCol.className = 'col-md-4';
+                    
+                    const riskFactorDiv = document.createElement('div');
+                    riskFactorDiv.className = `risk-factor ${factor.value > 0 ? 'active' : ''}`;
+                    riskFactorDiv.textContent = `${factor.name}: ${factor.value > 0 ? 'Yes' : 'No'}`;
+                    
+                    riskFactorCol.appendChild(riskFactorDiv);
+                    riskFactorsRow.appendChild(riskFactorCol);
+                });
+                
+                riskFactorsSection.appendChild(riskFactorsRow);
+                
+                // Assemble details container
+                detailsContainer.appendChild(metricsSection);
+                detailsContainer.appendChild(document.createElement('hr'));
+                detailsContainer.appendChild(riskFactorsSection);
+                
+                detailsCell.appendChild(detailsContainer);
+                detailsRow.appendChild(detailsCell);
+                
+                // Add rows to table
+                tableBody.appendChild(mainRow);
+                tableBody.appendChild(detailsRow);
+            });
+        }
+        
+        // Toggle details function
+        function toggleDetails(index) {
+            const detailsRow = document.querySelector(`.details-row-${index}`);
+            const icon = document.getElementById(`icon${index}`);
+            
+            if (detailsRow.style.display === 'none') {
+                detailsRow.style.display = 'table-row';
+                icon.classList.add('active');
+            } else {
+                detailsRow.style.display = 'none';
+                icon.classList.remove('active');
+            }
+        }
+
+        function renderPagination(currentPage, totalPages, startDate, endDate) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+            
+            if (totalPages <= 1) return;
+            
+            // Smart pagination - show limited number of pages with ellipsis
+            const maxPagesToShow = 5; // Adjust as needed
+            currentPage = parseInt(currentPage);
+            
+            // Create container for pagination controls
+            const paginationControls = document.createElement('div');
+            paginationControls.className = 'pagination-controls';
+            
+            // Function to create a page link
+            function createPageLink(pageNum, label, isActive = false) {
+                const link = document.createElement('a');
+                
+                let url = `/updated_session_risk_analysis?page=${pageNum}`;
+                if (startDate) url += `&start_date=${encodeURIComponent(startDate)}`;
+                if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`;
+                
+                link.href = url;
+                link.textContent = label || pageNum;
+                
+                if (isActive) {
+                    link.className = 'active';
+                }
+                
+                // Add click handler to use AJAX instead of page reload
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // Update URL without reloading
+                    window.history.pushState({}, '', this.href);
+                    
+                    // Get the page number from the URL
+                    const urlParams = new URLSearchParams(new URL(this.href).search);
+                    const pageNum = urlParams.get('page') || 1;
+                    
+                    // Fetch data for the new page
+                    fetchRiskAnalysisData(
+                        startDate || '',
+                        endDate || '',
+                        pageNum
+                    );
+                });
+                
+                return link;
+            }
+            
+            // Previous button
+            if (currentPage > 1) {
+                paginationControls.appendChild(createPageLink(currentPage - 1, '«'));
+            }
+            
+            // First page
+            paginationControls.appendChild(createPageLink(1, null, currentPage === 1));
+            
+            // Calculate page range to show
+            let startPage = Math.max(2, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages - 1, startPage + maxPagesToShow - 1);
+            
+            // Adjust if we're near the end
+            if (endPage >= totalPages - 1) {
+                startPage = Math.max(2, totalPages - maxPagesToShow);
+                endPage = totalPages - 1;
+            }
+            
+            // Show ellipsis if needed before middle pages
+            if (startPage > 2) {
+                const ellipsis = document.createElement('span');
+                ellipsis.textContent = '...';
+                ellipsis.style.margin = '0 5px';
+                paginationControls.appendChild(ellipsis);
+            }
+            
+            // Middle pages
+            for (let i = startPage; i <= endPage; i++) {
+                paginationControls.appendChild(createPageLink(i, null, i === currentPage));
+            }
+            
+            // Show ellipsis if needed after middle pages
+            if (endPage < totalPages - 1) {
+                const ellipsis = document.createElement('span');
+                ellipsis.textContent = '...';
+                ellipsis.style.margin = '0 5px';
+                paginationControls.appendChild(ellipsis);
+            }
+            
+            // Last page (if not already included)
+            if (totalPages > 1) {
+                paginationControls.appendChild(createPageLink(totalPages, null, currentPage === totalPages));
+            }
+            
+            // Next button
+            if (currentPage < totalPages) {
+                paginationControls.appendChild(createPageLink(currentPage + 1, '»'));
+            }
+            
+            // Add direct page navigation
+            const pageJump = document.createElement('div');
+            pageJump.className = 'page-jump';
+            
+            const pageLabel = document.createElement('span');
+            pageLabel.textContent = 'Go to page:';
+            
+            const pageInput = document.createElement('input');
+            pageInput.type = 'number';
+            pageInput.min = '1';
+            pageInput.max = totalPages.toString();
+            pageInput.value = currentPage;
+            
+            const goButton = document.createElement('button');
+            goButton.textContent = 'Go';
+            
+            goButton.addEventListener('click', function() {
+                const pageNum = parseInt(pageInput.value);
+                if (pageNum >= 1 && pageNum <= totalPages) {
+                    let url = `/updated_session_risk_analysis?page=${pageNum}`;
+                    if (startDate) url += `&start_date=${encodeURIComponent(startDate)}`;
+                    if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`;
+                    
+                    // Update URL without reloading
+                    window.history.pushState({}, '', url);
+                    
+                    // Fetch data for the new page
+                    fetchRiskAnalysisData(
+                        startDate || '',
+                        endDate || '',
+                        pageNum
+                    );
+                }
+            });
+            
+            // Add keypress event for Enter key
+            pageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    goButton.click();
+                }
+            });
+            
+            pageJump.appendChild(pageLabel);
+            pageJump.appendChild(pageInput);
+            pageJump.appendChild(goButton);
+            
+            // Add both containers to pagination
+            pagination.appendChild(paginationControls);
+            pagination.appendChild(pageJump);
+        }
+
+        // HTML escaping function for security
+        function escapeHTML(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+
+</html>

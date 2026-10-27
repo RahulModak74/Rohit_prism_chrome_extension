@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attack Detection Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Using the exact same styles as risk-analysis.ejs */
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .dashboard-card {
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+            border: none;
+            border-radius: 12px;
+        }
+
+        .card-header {
+            background: linear-gradient(to right, #1a237e, #3949ab) !important;
+            color: white;
+            padding: 1.5rem !important;
+            border-top-left-radius: 12px !important;
+            border-top-right-radius: 12px !important;
+        }
+
+        .card-header h4 {
+            margin: 0;
+            font-weight: 500;
+        }
+
+        .card-header small {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .table>thead {
+            background-color: #1a237e;
+        }
+
+        .table>thead th {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            color: #000000;
+            padding: 1rem;
+            border: none;
+        }
+
+        .clickable {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .clickable:hover {
+            background-color: #f8f9fa;
+        }
+
+        .score-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            color: white;
+            font-weight: 500;
+            font-size: 0.875rem;
+            display: inline-block;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .score-high {
+            background-color: #dc3545;
+        }
+
+        .score-medium {
+            background-color: #fd7e14;
+        }
+
+        .score-low {
+            background-color: #198754;
+        }
+
+        .details-container {
+            background: linear-gradient(to right, #f8f9fa, #ffffff);
+            border-radius: 8px;
+            margin: 10px;
+        }
+
+        .attack-factor {
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border-radius: 8px;
+            background-color: white;
+            transition: all 0.2s;
+            border: 1px solid #e9ecef;
+        }
+
+        .attack-factor.active {
+            background-color: #fff4f4;
+            color: #dc3545;
+            border-color: #ffc9c9;
+        }
+
+        .metrics-card {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            height: 100%;
+            border: 1px solid #e9ecef;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .metric-label {
+            color: #6c757d;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        /* Same button and utility styles */
+        .btn-action {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            min-width: 100px;
+            white-space: nowrap;
+        }
+
+        .btn-captcha {
+            background-color: #0d6efd;
+        }
+
+        .btn-algo {
+            background-color: #6c757d;
+        }
+
+        .btn-action:hover {
+            background-color: #c82333;
+        }
+
+        .btn-captcha:hover {
+            background-color: #0b5ed7;
+        }
+
+        .btn-algo:hover {
+            background-color: #5a6268;
+        }
+
+        .d-flex.gap-2 {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* Adjust the buttons to be the same size */
+        .btn-action {
+            min-width: 100px;
+            white-space: nowrap;
+        }
+
+        .alert {
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .refresh-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 20px 0;
+        }
+
+        .refresh-btn:hover {
+            background-color: #218838;
+        }
+
+        .pagination {
+            margin-top: 20px;
+            text-align: center;
+            background: white;
+            padding: 15px;
+            border-top: 1px solid #ddd;
+        }
+
+        .pagination a {
+            display: inline-block;
+            padding: 8px 16px;
+            text-decoration: none;
+            color: #007bff;
+            border: 1px solid #ddd;
+            margin: 0 4px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .pagination a.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .pagination a:hover:not(.active) {
+            background-color: #f0f0f0;
+        }
+
+        .session-link {
+            color: #007bff;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background-color: transparent;
+            z-index: 2;
+            position: relative;
+        }
+
+        .session-link:hover {
+            color: #0056b3;
+            background-color: rgba(0, 123, 255, 0.1);
+            text-decoration: none;
+        }
+
+        .session-link svg {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.3s ease;
+        }
+
+        .session-link:hover svg {
+            transform: translateX(2px);
+        }
+
+        /* Add this to ensure the cell doesn't interfere with the link */
+        td .session-link {
+            pointer-events: auto;
+        }
+
+        .algo-result {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #6c757d;
+            white-space: pre-line;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .risk-high {
+            border-left-color: #dc3545;
+        }
+
+        .risk-medium {
+            border-left-color: #ffc107;
+        }
+
+        .risk-low {
+            border-left-color: #28a745;
+        }
+
+        .btn-algo {
+            background-color: #dc3545;
+        }
+
+        .btn-algo:hover {
+            background-color: #c82333;
+        }
+
+        .algo-result {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-block;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .algo-result.risk-high {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border: 1px solid rgba(220, 53, 69, 0.2);
+        }
+
+        .algo-result.risk-medium {
+            background-color: rgba(255, 193, 7, 0.1);
+            color: #fd7e14;
+            border: 1px solid rgba(255, 193, 7, 0.2);
+        }
+
+        .algo-result.risk-low {
+            background-color: rgba(40, 167, 69, 0.1);
+            color: #198754;
+            border: 1px solid rgba(40, 167, 69, 0.2);
+        }
+
+        /* Adjust the actions column to accommodate the result */
+        td .d-flex.gap-2 {
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+
+        .algo-result {
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            margin-top: 8px;
+            width: 100%;
+        }
+
+        .risk-score-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .risk-score-badge.risk-high {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border: 1px solid rgba(220, 53, 69, 0.2);
+        }
+
+        .risk-score-badge.risk-medium {
+            background-color: rgba(255, 193, 7, 0.1);
+            color: #fd7e14;
+            border: 1px solid rgba(255, 193, 7, 0.2);
+        }
+
+        .risk-score-badge.risk-low {
+            background-color: rgba(40, 167, 69, 0.1);
+            color: #198754;
+            border: 1px solid rgba(40, 167, 69, 0.2);
+        }
+
+        .analysis-text {
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.8rem;
+            padding: 8px;
+            background-color: white;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        .algo-result-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            vertical-align: middle;
+        }
+
+        .algo-result-badge.risk-high {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border: 1px solid rgba(220, 53, 69, 0.2);
+        }
+
+        .algo-result-badge.risk-medium {
+            background-color: rgba(255, 193, 7, 0.1);
+            color: #fd7e14;
+            border: 1px solid rgba(255, 193, 7, 0.2);
+        }
+
+        .algo-result-badge.risk-low {
+            background-color: rgba(40, 167, 69, 0.1);
+            color: #198754;
+            border: 1px solid rgba(40, 167, 69, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+    <button class="refresh-btn" onclick="loadContent('/attack-detection', this)">Refresh Data</button>
+
+    <!-- Flash Messages -->
+    <div class="flash-messages">
+        <% if (messages.error) { %>
+            <div class="alert alert-danger alert-dismissible fade show">
+                <%= escapeHTML(messages.error) %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            <% } %>
+                <% if (messages.success) { %>
+                    <div class="alert alert-success alert-dismissible fade show">
+                        <%= escapeHTML(messages.success) %>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <% } %>
+    </div>
+
+    <div class="container-fluid py-4">
+        <div class="card dashboard-card">
+            <div class="card-header">
+                <h4>Attack Detection Dashboard</h4>
+                <small>Hostname: <%= escapeHTML(hostname) %></small>
+            </div>
+
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Session ID</th>
+                            <th>Attack Score</th>
+                            <th>Actions</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% data.forEach(function(session, index) { %>
+                            <tr class="clickable" onclick="toggleDetails(<%=index%>)" data-bs-toggle="collapse"
+                                data-bs-target=".detail<%=index%>">
+                                <td onclick="event.stopPropagation()">
+                                    <a href="/session_journey?session_id=<%= encodeURIComponent(session.session_id) %>" class="session-link">
+                                        <%= escapeHTML(session.session_id) %>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-left: 4px; vertical-align: middle;">
+                                            <path d="M4.5 1.5A.5.5 0 0 0 4 2v4.5h1V2a.5.5 0 0 0-.5-.5zm2 0A.5.5 0 0 0 6 2v4.5h1V2a.5.5 0 0 0-.5-.5zm-4 5A.5.5 0 0 0 2 7v4.5h1V7a.5.5 0 0 0-.5-.5zm2 0A.5.5 0 0 0 4 7v4.5h1V7a.5.5 0 0 0-.5-.5zm4-5A.5.5 0 0 0 10 2v4.5h1V2a.5.5 0 0 0-.5-.5z"/>
+                                        </svg>
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="score-badge <%= 
+                                        session.total_attack_score >= 8 ? 'score-high' : 
+                                        (session.total_attack_score >= 5 ? 'score-medium' : 'score-low') 
+                                    %>">
+                                        <%= escapeHTML((session.total_attack_score ? session.total_attack_score : '0').toString()) %>/10
+                                    </span>
+                                    
+                                    <% if (aiScores && aiScores[session.session_id] !==undefined &&
+                                    aiScores[session.session_id] !==null) { var
+                                    aiScoreValue=aiScores[session.session_id]; if (aiScoreValue !=='' ) { var
+                                    score=parseInt(aiScoreValue) || 0; var scoreClass=score>= 8 ? 'score-high' :
+                                    (score >= 5 ? 'score-medium' : 'score-low');
+                                    %>
+                                    <span class="score-badge <%= scoreClass %> ml-2">
+                                        AI: <%= aiScoreValue %>/10
+                                    </span>
+                                    <% } } %>
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2">
+                                        <!-- Terminate Form -->
+                                        <form method="POST" action="/risk-analysis" style="display: inline;"
+                                            onsubmit="return confirm('Are you sure you want to terminate this session?');">
+                                            <input type="hidden" name="sessionId" value="<%= escapeHTML(session.session_id) %>">
+                                            <button type="submit" class="btn-action">Terminate</button>
+                                        </form>
+
+                                        <!-- Captcha Form -->
+                                        <form method="POST" action="/send-captcha-session" style="display: inline;"
+                                            onsubmit="handleCaptchaSubmit(event, this)">
+                                            <input type="hidden" name="sessionId" value="<%= escapeHTML(session.session_id) %>">
+                                            <button type="submit" class="btn-action btn-captcha">Send Captcha</button>
+                                        </form>
+
+                                        <!-- Internal Algo Form - Using the redirect approach -->
+                                        <form method="POST" action="/internal-algo-check" style="display: inline;">
+                                            <input type="hidden" name="sessionId" value="<%= escapeHTML(session.session_id) %>">
+                                            <button type="submit" class="btn-action btn-algo">AI Score</button>
+                                        </form>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <svg class="rotate-icon" id="icon<%=index%>" width="20" height="20"
+                                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </td>
+                            </tr>
+                            <tr class="collapse detail<%=index%>">
+                                <td colspan="5" class="p-0">
+                                    <div class="details-container p-4">
+                                        <div class="row g-4">
+                                            <!-- Session Metrics -->
+                                            <div class="col-12">
+                                                <h6 class="mb-3">Session Metrics</h6>
+                                                <div class="row g-3">
+                                                    <div class="col-md-3">
+                                                        <div class="metrics-card text-center">
+                                                            <div class="metric-value">
+                                                                <%= escapeHTML((session.request_count !== undefined ? session.request_count : 0).toString()) %>
+                                                            </div>
+                                                            <div class="metric-label">Total Requests</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="metrics-card text-center">
+                                                            <div class="metric-value">
+                                                                <%= escapeHTML((session.dom_changes_count !== undefined ? session.dom_changes_count : 0).toString()) %>
+                                                            </div>
+                                                            <div class="metric-label">DOM Changes</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="metrics-card text-center">
+                                                            <div class="metric-value">
+                                                                <%= escapeHTML((session.security_violations_count !== undefined ? session.security_violations_count : 0).toString()) %>
+                                                            </div>
+                                                            <div class="metric-label">Security Violations</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="metrics-card text-center">
+                                                            <div class="metric-value">
+                                                                <%= escapeHTML(Math.floor((new Date(session.last_activity) - new Date(session.first_activity)) / 1000).toString()) %>s
+                                                            </div>
+                                                            <div class="metric-label">Duration</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Attack Factors -->
+                                            <div class="col-12">
+                                                <h6 class="mb-3">Attack Detection</h6>
+                                                <div class="row g-3">
+                                                    <% const attackFactors=[ 
+                                                        { name: 'CSRF Attack', value: session.csrf_attack || 0 }, 
+                                                        { name: 'Session Hijacking', value: session.session_hijack_attack || 0 }, 
+                                                        { name: 'Clickjacking/Iframe Injection', value: session.clickjacking_attack || 0 }, 
+                                                        { name: 'Credential Stuffing', value: session.credential_stuffing_attack || 0 }, 
+                                                        { name: 'File Upload Attack', value: session.file_upload_attack || 0 }, 
+                                                        { name: 'XSS Attack', value: session.xss_attack || 0 }, 
+                                                        { name: 'SQL Injection', value: session.sqli_attack || 0 }, 
+                                                        { name: 'Redirect Attack', value: session.redirect_attack || 0 }, 
+                                                        { name: 'Dynamic Script Injection', value: session.dynamic_script_risk || 0 }, 
+                                                        { name: 'Form Modification', value: session.form_mod_risk || 0 }, 
+                                                        { name: 'DOM Behavior Anomaly', value: session.dom_behavior_risk || 0 }, 
+                                                        { name: 'Element Cycling', value: session.element_cycling_risk || 0 }
+                                                    ] %>
+                                                    <% attackFactors.forEach(function(factor) { %>
+                                                        <div class="col-md-4">
+                                                            <div class="attack-factor <%= factor.value > 0 ? 'active' : '' %>">
+                                                                <%= escapeHTML(factor.name) %>: <%= factor.value > 0 ? 'Detected' : 'Not Detected' %>
+                                                                <% if (factor.value > 0 && factor.name === 'Clickjacking/Iframe Injection') { %>
+                                                                    <small class="d-block mt-1 text-danger">
+                                                                        Suspicious iframe or frame manipulation detected
+                                                                    </small>
+                                                                <% } %>
+                                                            </div>
+                                                        </div>
+                                                    <% }); %>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <% }); %>
+                    </tbody>
+                </table>
+
+                <!-- Pagination -->
+                <div class="d-flex justify-content-center p-3">
+                    <% for(let i=1; i <=totalPages; i++) { %>
+                        <a href="/attack-detection?page=<%= i %>" class="btn btn-outline-primary mx-1 <%= currentPage === i ? 'active' : '' %>">
+                            <%= i %>
+                        </a>
+                        <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Toggle details function
+        function toggleDetails(index) {
+            const icon = document.getElementById('icon' + index);
+            if (icon) {
+                icon.classList.toggle('active');
+            }
+        }
+
+        // Function to create and show flash message
+        function showFlashMessage(message, type) {
+            const flashContainer = document.querySelector('.flash-messages');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} alert-dismissible fade show`;
+            alert.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            flashContainer.appendChild(alert);
+            setTimeout(() => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }, 5000);
+        }
+
+        // Handle captcha form submissions
+        function handleCaptchaSubmit(event, form) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const formData = new FormData(form);
+            const sessionId = formData.get('sessionId');
+
+            fetch('/send-captcha-session', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `sessionId=${sessionId}`
+            })
+                .then(response => {
+                    if (response.redirected) {
+                        window.location.href = response.url;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+
+            return false;
+        }
+
+        // Function to load content
+        function loadContent(url, button) {
+            const currentPage = new URLSearchParams(window.location.search).get('page') || '1';
+            const targetUrl = `${url}?page=${currentPage}`;
+
+            if (button) button.disabled = true;
+
+            fetch(targetUrl)
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    document.querySelector('.container-fluid').innerHTML =
+                        doc.querySelector('.container-fluid').innerHTML;
+
+                    if (button) button.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    if (button) button.disabled = false;
+                    showFlashMessage('Error refreshing data', 'danger');
+                });
+        }
+
+        // Initialize event handlers when document is loaded
+        document.addEventListener('DOMContentLoaded', function () {
+            // Auto-hide existing flash messages after 5 seconds
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function (alert) {
+                setTimeout(function () {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 5000);
+            });
+
+            // Handle links and stop propagation
+            document.querySelectorAll('.session-link').forEach(link => {
+                link.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                });
+            });
+
+            // Prevent form clicks from triggering the parent row's click event
+            document.querySelectorAll('form').forEach(form => {
+                form.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                });
+            });
+
+            // Prevent button clicks from triggering row toggle
+            document.querySelectorAll('.btn-action').forEach(button => {
+                button.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>
