@@ -2407,7 +2407,6 @@ app.post('/internal-algo-check', security.protect(), isAuthenticated, async (req
     const result = await new Promise((resolve, reject) => {
       const { exec } = require('child_process');
       const curlCommand = `curl https://openrouter.ai/api/v1/chat/completions \\
-        -H "Authorization: Bearer sk-or-v1-" \\
         -H "Content-Type: application/json" \\
         -d '{
           "model": "openai/gpt-3.5-turbo", 

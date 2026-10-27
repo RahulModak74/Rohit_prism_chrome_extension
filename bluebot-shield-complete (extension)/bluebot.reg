@@ -1,0 +1,8 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\3rdparty\extensions\oledlpaekbcdpoeajacbdhjngoldpcjo\policy]
+"orgId"="test"
+"userId"="self-test"
+"serverUrl"="https://battery.bluebotanalytics.com/collect"
+"collectFullUrl"=dword:00000000
+"monitorIncognito"=dword:00000000
